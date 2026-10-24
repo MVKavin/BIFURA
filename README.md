@@ -39,6 +39,19 @@ against Bifura's own derivation, or **💬 Numeric chat check** to ask Gemini, G
 problem and let Bifura recalculate every step, find the first wrong one, and get the AI to correct it.
 Full walkthrough, controls and demo script: `docs/DASHBOARD_GUIDE.md`.
 
+## Landing page (optional)
+
+`landing/` is the marketing landing page (React + Vite). Its **Launch App** buttons open the Bifura
+dashboard at `http://localhost:8501`, so start Bifura first, then:
+
+```cmd
+cd landing
+npm install
+npm run dev
+```
+
+Open http://localhost:5173. To point the buttons somewhere else, set `VITE_BIFURA_APP_URL`.
+
 ## Run tests
 
 ```cmd
