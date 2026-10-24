@@ -1,0 +1,40 @@
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bifura"
+version = "0.1.0"
+description = "Incident-informed predictive debugging for multi-step AI agents"
+requires-python = ">=3.11"
+dependencies = [
+    "langgraph",
+    "streamlit",
+    "networkx",
+    "plotly",
+    "pydantic>=2",
+    "python-dotenv",
+    "scikit-learn",
+    "google-genai",
+    "joblib",
+    "sympy>=1.12",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+]
+# Optional: other chat models for Chat check (pip install -e ".[gpt,claude]")
+gpt = ["openai"]
+claude = ["anthropic"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+"bifura.dashboard" = ["templates/*.html", "narratives/*.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

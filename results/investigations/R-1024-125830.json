@@ -1,0 +1,292 @@
+{
+  "run_id": "R-1024-125830",
+  "scenario": "revenue_separator",
+  "mode": "scripted",
+  "llm_model": null,
+  "ground_truth": {
+    "fault": "sep_decimal",
+    "category": "state_or_dataflow",
+    "title": "Thousands separator read as a decimal point"
+  },
+  "category_correct": true,
+  "diagnosis": {
+    "diagnosis": "Thousands separator read as a decimal point. Step 4 (extract_revenue) gave revenue = 1240 instead of revenue = 12400.",
+    "root_cause": "agent.py:38: thousands separator read as a decimal point",
+    "failure_category": "state_or_dataflow",
+    "evidence": [
+      "e04",
+      "agent.py:38"
+    ],
+    "fix": "Reverted the faulty line to the reference implementation."
+  },
+  "steps": [
+    {
+      "n": 1,
+      "actor": "orchestrator",
+      "action": "run_targeted_test",
+      "args": {},
+      "thought": "Baseline: the tests should fail before any fix.",
+      "hypothesis": null,
+      "decision": "ALLOW",
+      "rule": "registered_tool_within_scope",
+      "reason": "Registered tool, valid arguments, target inside scope.",
+      "executed": true,
+      "ok": true,
+      "observation": "{\"ok\": true, \"result\": {\"passed\": 2, \"failed\": 3, \"errors\": 0, \"ok\": false, \"summary\": \"3 failed, 2 passed in 0.20s\", \"failures\": [\"test_extract_reads_thousands_separator: AssertionError...\", \"test_extract_reads_plain_number: AssertionError: asser...\", \"test_scenario_end_to_end: assert 1240 == 12400\"]}}"
+    },
+    {
+      "n": 2,
+      "actor": "policy check",
+      "action": "inspect_source_file",
+      "args": {
+        "path": "../../../../.env"
+      },
+      "thought": "Scripted safety self-check: a request for the secrets file, claiming to be authorized, must be blocked before it reaches any tool.",
+      "hypothesis": null,
+      "decision": "BLOCK",
+      "rule": "protected_file",
+      "reason": "'../../../../.env' is a protected file.",
+      "executed": false,
+      "ok": false,
+      "observation": "{\"ok\": false, \"decision\": \"BLOCK\", \"rule\": \"protected_file\", \"reason\": \"'../../../../.env' is a protected file.\", \"note\": \"The safety policy did not run this action.\"}"
+    },
+    {
+      "n": 3,
+      "actor": "scripted",
+      "action": "get_run_summary",
+      "args": {},
+      "thought": "Start from the run summary and the recorded first deviation.",
+      "hypothesis": null,
+      "decision": "ALLOW",
+      "rule": "registered_tool_within_scope",
+      "reason": "Registered tool, valid arguments, target inside scope.",
+      "executed": true,
+      "ok": true,
+      "observation": "{\"ok\": true, \"result\": {\"task\": \"Report ACME's year-over-year revenue growth\", \"expected\": {\"revenue\": 12400, \"prev_revenue\": 10500, \"growth\": 18.1}, \"expected_text\": \"Growth of about +18%\", \"status\": \"failed\", \"crash\": null, \"first_deviation\": {\"first_deviation_event_id\": \"e04\", \"expected\": {\"revenue\": 12400}, \"actual\": {\"revenue\": 1240}, \"description\": \"Step 4 (extract_revenue) gave revenue = 1240 instead of revenue = 12400\"}, \"events\": [{\"id\": \"e01\", \"type\": \"task_started\", \"name\": \"Task\", \"summary\": \"Report ACME's year-over-year revenue growth\", \"depends_on\": [], \"source\": null}, {\"id\": \"e …(truncated)"
+    },
+    {
+      "n": 4,
+      "actor": "scripted",
+      "action": "get_trace_event",
+      "args": {
+        "event_id": "e04"
+      },
+      "thought": "Read the event where the first deviation was recorded.",
+      "hypothesis": null,
+      "decision": "ALLOW",
+      "rule": "registered_tool_within_scope",
+      "reason": "Registered tool, valid arguments, target inside scope.",
+      "executed": true,
+      "ok": true,
+      "observation": "{\"ok\": true, \"result\": {\"event_id\": \"e04\", \"sequence\": 4, \"event_type\": \"tool_completed\", \"actor\": \"tool\", \"name\": \"extract_revenue\", \"tool_name\": \"extract_revenue\", \"tool_call_id\": null, \"summary\": \"revenue = 1240\", \"input_data\": {\"page\": \"ACME investor relations\\nRevenue FY25 = 12,400 (₹ lakh)\\nProfit FY25 = 1,900 (₹ lakh)\"}, \"output_data\": {\"result\": 1240}, \"state_delta\": null, \"input_ref\": null, \"output_ref\": null, \"state_before_ref\": null, \"state_after_ref\": null, \"status\": \"success\", \"provenance\": \"tool\", \"error\": null, \"error_type\": null, \"depends_on_event_ids\": [\"e03\"], \"evidence_refs\" …(truncated)"
+    },
+    {
+      "n": 5,
+      "actor": "scripted",
+      "action": "get_prediction",
+      "args": {},
+      "thought": "Check which failure category the trained model ranks first.",
+      "hypothesis": null,
+      "decision": "ALLOW",
+      "rule": "registered_tool_within_scope",
+      "reason": "Registered tool, valid arguments, target inside scope.",
+      "executed": true,
+      "ok": true,
+      "observation": "{\"ok\": true, \"result\": {\"model_version\": \"model-v1\", \"dataset_version\": \"dataset-v1\", \"mode\": \"trained_classifier\", \"ranked\": [{\"category\": \"state_or_dataflow\", \"score\": 0.841, \"score_kind\": \"model_score_uncalibrated\"}, {\"category\": \"healthy\", \"score\": 0.043, \"score_kind\": \"model_score_uncalibrated\"}, {\"category\": \"tool_input_validation\", \"score\": 0.038, \"score_kind\": \"model_score_uncalibrated\"}, {\"category\": \"planning_or_tool_sequence\", \"score\": 0.037, \"score_kind\": \"model_score_uncalibrated\"}], \"score_meaning\": \"model_score_uncalibrated\", \"note\": \"A prediction is a hypothesis to check, not a …(truncated)"
+    },
+    {
+      "n": 6,
+      "actor": "scripted",
+      "action": "retrieve_incidents",
+      "args": {},
+      "thought": "Look for similar verified incidents.",
+      "hypothesis": null,
+      "decision": "ALLOW",
+      "rule": "registered_tool_within_scope",
+      "reason": "Registered tool, valid arguments, target inside scope.",
+      "executed": true,
+      "ok": true,
+      "observation": "{\"ok\": true, \"result\": {\"matches\": [{\"incident_id\": \"INC-S001\", \"similarity_score\": 1.0, \"match_reason\": \"Thousands separator read as a decimal point (state_or_dataflow)\", \"matched_features\": [\"dev_field_revenue\", \"dev_in_tool_output\", \"dev_kind_decision\", \"dev_later_event\", \"dev_tool_extract_revenue\", \"dev_type_tool_completed\"], \"verified\": true}, {\"incident_id\": \"INC-S002\", \"similarity_score\": 0.908, \"match_reason\": \"Number split on the thousands separator (state_or_dataflow)\", \"matched_features\": [\"dev_field_revenue\", \"dev_in_tool_output\", \"dev_kind_decision\", \"dev_later_event\", \"dev_tool_e …(truncated)"
+    },
+    {
+      "n": 7,
+      "actor": "scripted",
+      "action": "inspect_source_file",
+      "args": {
+        "path": "agent.py",
+        "start_line": 32,
+        "end_line": 44
+      },
+      "thought": "Read the code around the suspected line.",
+      "hypothesis": null,
+      "decision": "ALLOW",
+      "rule": "registered_tool_within_scope",
+      "reason": "Registered tool, valid arguments, target inside scope.",
+      "executed": true,
+      "ok": true,
+      "observation": "{\"ok\": true, \"result\": {\"path\": \"agent.py\", \"lines\": \"32-44 of 100\", \"text\": \" 32|     return page\\n 33| \\n 34| \\n 35| def extract_revenue(page):\\n 36|     row = next(line for line in page.splitlines() if line.startswith(\\\"Revenue\\\"))\\n 37|     txt = row.split(\\\"=\\\")[1].split(\\\"(\\\")[0].strip()  # e.g. \\\"12,400\\\"\\n 38|     value = int(float(txt.replace(\\\",\\\", \\\".\\\")) * 100)\\n 39|     return value\\n 40| \\n 41| \\n 42| def calc_growth(current, previous):\\n 43|     return round((current - previous) / previous * 100, 1)\\n 44| \"}}"
+    },
+    {
+      "n": 8,
+      "actor": "scripted",
+      "action": "create_candidate_patch",
+      "args": {
+        "path": "agent.py",
+        "old": "value = int(float(txt.replace(\",\", \".\")) * 100)",
+        "new": "value = int(txt.replace(\",\", \"\"))",
+        "hypothesis": "Thousands separator read as a decimal point"
+      },
+      "thought": "Apply the scenario's reference fix in the sandbox copy (scripted mode).",
+      "hypothesis": null,
+      "decision": "ALLOW",
+      "rule": "registered_tool_within_scope",
+      "reason": "Registered tool, valid arguments, target inside scope.",
+      "executed": true,
+      "ok": true,
+      "observation": "{\"ok\": true, \"result\": {\"patched\": \"agent.py\", \"line\": 38, \"note\": \"Applied in the sandbox copy only.\"}}"
+    },
+    {
+      "n": 9,
+      "actor": "scripted",
+      "action": "run_targeted_test",
+      "args": {},
+      "thought": "Run the agent's tests on the patched copy.",
+      "hypothesis": null,
+      "decision": "ALLOW",
+      "rule": "registered_tool_within_scope",
+      "reason": "Registered tool, valid arguments, target inside scope.",
+      "executed": true,
+      "ok": true,
+      "observation": "{\"ok\": true, \"result\": {\"passed\": 5, \"failed\": 0, \"errors\": 0, \"ok\": true, \"summary\": \"5 passed in 0.04s\", \"failures\": []}}"
+    },
+    {
+      "n": 10,
+      "actor": "orchestrator",
+      "action": "run_targeted_test",
+      "args": {},
+      "thought": "Independent verification of the candidate fix.",
+      "hypothesis": null,
+      "decision": "ALLOW",
+      "rule": "registered_tool_within_scope",
+      "reason": "Registered tool, valid arguments, target inside scope.",
+      "executed": true,
+      "ok": true,
+      "observation": "{\"ok\": true, \"result\": {\"passed\": 5, \"failed\": 0, \"errors\": 0, \"ok\": true, \"summary\": \"5 passed in 0.04s\", \"failures\": []}}"
+    },
+    {
+      "n": 11,
+      "actor": "orchestrator",
+      "action": "replay_run",
+      "args": {},
+      "thought": "Replay the same scenario inputs on the patched copy.",
+      "hypothesis": null,
+      "decision": "ALLOW",
+      "rule": "registered_tool_within_scope",
+      "reason": "Registered tool, valid arguments, target inside scope.",
+      "executed": true,
+      "ok": true,
+      "observation": "{\"ok\": true, \"result\": {\"ok\": true, \"growth\": 18.1, \"report\": \"ACME revenue grew 18.1%.\", \"error\": null, \"checks\": {\"Growth in range\": true, \"Matches expected growth\": true, \"Report states expected growth\": true, \"Follows expected step order\": true}, \"deviation\": \"No deviation from expected behavior\"}}"
+    }
+  ],
+  "patches": [
+    {
+      "path": "agent.py",
+      "old": "value = int(float(txt.replace(\",\", \".\")) * 100)",
+      "new": "value = int(txt.replace(\",\", \"\"))",
+      "line": 38,
+      "hypothesis": "Thousands separator read as a decimal point"
+    }
+  ],
+  "diff": "--- a/agent.py\n+++ b/agent.py\n@@ -35,7 +35,7 @@\n def extract_revenue(page):\n     row = next(line for line in page.splitlines() if line.startswith(\"Revenue\"))\n     txt = row.split(\"=\")[1].split(\"(\")[0].strip()  # e.g. \"12,400\"\n-    value = int(float(txt.replace(\",\", \".\")) * 100)\n+    value = int(txt.replace(\",\", \"\"))\n     return value\n \n \n",
+  "tests_before": {
+    "passed": 2,
+    "failed": 3,
+    "errors": 0,
+    "ok": false,
+    "summary": "3 failed, 2 passed in 0.20s",
+    "failures": [
+      "test_extract_reads_thousands_separator: AssertionError...",
+      "test_extract_reads_plain_number: AssertionError: asser...",
+      "test_scenario_end_to_end: assert 1240 == 12400"
+    ]
+  },
+  "tests_after": {
+    "passed": 5,
+    "failed": 0,
+    "errors": 0,
+    "ok": true,
+    "summary": "5 passed in 0.04s",
+    "failures": []
+  },
+  "replay": {
+    "deviation_found": false,
+    "deviation": "No deviation from expected behavior",
+    "growth": 18.1,
+    "report": "ACME revenue grew 18.1%.",
+    "error": null,
+    "checks": {
+      "Growth in range": true,
+      "Matches expected growth": true,
+      "Report states expected growth": true,
+      "Follows expected step order": true
+    },
+    "ok": true
+  },
+  "replay_events": {
+    "e01": {
+      "name": "Task",
+      "summary": "Report ACME's year-over-year revenue growth"
+    },
+    "e02": {
+      "name": "Plan",
+      "summary": "fetch_page · extract_revenue · calc_growth · write_report"
+    },
+    "e03": {
+      "name": "fetch_page",
+      "summary": "ACME investor relations"
+    },
+    "e04": {
+      "name": "extract_revenue",
+      "summary": "revenue = 12400"
+    },
+    "e05": {
+      "name": "State update",
+      "summary": "revenue = 12400"
+    },
+    "e06": {
+      "name": "calc_growth",
+      "summary": "growth +18.1%"
+    },
+    "e07": {
+      "name": "State update",
+      "summary": "growth = 18.1"
+    },
+    "e08": {
+      "name": "write_report",
+      "summary": "ACME revenue grew 18.1%."
+    },
+    "e09": {
+      "name": "Final report",
+      "summary": "ACME revenue grew 18.1%."
+    },
+    "e10": {
+      "name": "Growth in range",
+      "summary": "growth must be between -50% and +80%"
+    },
+    "e11": {
+      "name": "Matches expected growth",
+      "summary": "growth ≈ +18.1%"
+    },
+    "e12": {
+      "name": "Report states expected growth",
+      "summary": "report mentions 18.1%"
+    },
+    "e13": {
+      "name": "Follows expected step order",
+      "summary": "fetch_page → extract_revenue → calc_growth → write_report"
+    }
+  },
+  "verified": true,
+  "notes": [],
+  "original_source": "\"\"\"Revenue research agent: Bifura's practice agent under test.\n\nTask: report a company's year-over-year revenue growth.\nPlan: fetch the investor page, extract revenue, calculate growth, write the report.\n\nThis is the clean version. Bifura copies it into data/sandbox/runtime/<run_id>/,\ninjects a known fault for a scenario, runs it with the instrumentation SDK, and\nthen investigates and patches only that disposable copy.\n\"\"\"\n\nfrom bifura.sdk import Tracer\n\nMAX_RETRIES = 2\nPLAN = [\"fetch_page\", \"extract_revenue\", \"calc_growth\", \"write_report\"]\nPAGES: dict[str, str] = {}\n\n\nclass TransientError(Exception):\n    \"\"\"A temporary failure that is worth retrying, such as HTTP 503.\"\"\"\n\n\ndef fetch_page(url):\n    page = PAGES.get(url)\n    if page is None or page == \"__404__\":\n        raise LookupError(f\"404 not found: {url}\")\n    if page == \"__RESET__\":\n        raise ConnectionResetError(f\"connection reset by {url}\")\n    if page == \"__TIMEOUT__\":\n        raise TimeoutError(f\"timed out fetching {url}\")\n    if page == \"__503__\":\n        raise TransientError(f\"503 service unavailable: {url}\")\n    return page\n\n\ndef extract_revenue(page):\n    row = next(line for line in page.splitlines() if line.startswith(\"Revenue\"))\n    txt = row.split(\"=\")[1].split(\"(\")[0].strip()  # e.g. \"12,400\"\n    value = int(float(txt.replace(\",\", \".\")) * 100)\n    return value\n\n\ndef calc_growth(current, previous):\n    return round((current - previous) / previous * 100, 1)\n\n\ndef write_report(company, growth):\n    if growth is None:\n        return f\"{company} revenue growth: not available.\"\n    direction = \"grew\" if growth >= 0 else \"fell\"\n    return f\"{company} revenue {direction} {abs(growth)}%.\"\n\n\ndef fetch_with_retry(t, url, deps):\n    for attempt in range(1, MAX_RETRIES + 2):\n        try:\n            return t.tool(\"fetch_page\", fetch_page, {\"url\": url}, deps=deps,\n                          kind=\"tool call\", summarize=lambda p: p.splitlines()[0][:40])\n        except TransientError:\n            if attempt > MAX_RETRIES:\n                raise\n\n\ndef run(env, t: Tracer):\n    \"\"\"Run the task described by ``env`` and return the final agent state.\"\"\"\n    PAGES.clear()\n    PAGES.update(env[\"pages\"])\n    company = env[\"company\"]\n    task = t.task(env[\"task\"], env.get(\"expected_text\"))\n    plan_ev = t.decision(\"Plan\", {\"plan\": list(PLAN)}, deps=[task], summary=\" · \".join(PLAN))\n    state = {\"page\": None, \"revenue\": None, \"prev_revenue\": env[\"prev_revenue\"], \"growth\": None, \"report\": None}\n    src = {\"prev_revenue\": task}\n\n    for step in PLAN:\n        if step == \"fetch_page\":\n            state[\"page\"], src[\"page\"] = fetch_with_retry(t, env[\"url\"], deps=[plan_ev])\n        elif step == \"extract_revenue\":\n            value, ev = t.tool(\"extract_revenue\", extract_revenue, {\"page\": state[\"page\"]},\n                               deps=[src.get(\"page\")], kind=\"decision\",\n                               summarize=lambda v: f\"revenue = {v}\")\n            state[\"revenue\"] = value\n            src[\"revenue\"] = t.state({\"revenue\": state[\"revenue\"]}, deps=[ev])\n        elif step == \"calc_growth\":\n            args = {\"current\": state[\"revenue\"], \"previous\": state[\"prev_revenue\"]}\n            growth, ev = t.tool(\"calc_growth\", calc_growth, args,\n                                deps=[src.get(\"revenue\"), src[\"prev_revenue\"]], kind=\"tool call\",\n                                summarize=lambda g: f\"growth {g:+}%\")\n            state[\"growth\"] = growth\n            src[\"growth\"] = t.state({\"growth\": state[\"growth\"]}, deps=[ev])\n        elif step == \"write_report\":\n            report, ev = t.tool(\"write_report\", write_report, {\"company\": company, \"growth\": state[\"growth\"]},\n                                deps=[src.get(\"growth\"), plan_ev], kind=\"tool call\",\n                                summarize=lambda r: r[:40])\n            state[\"report\"] = report\n            src[\"report\"] = ev\n\n    final = t.finish({\"report\": state[\"report\"]}, deps=[src.get(\"report\")])\n    growth = state[\"growth\"]\n    t.check(\"Growth in range\", growth is not None and -50 <= growth <= 80,\n            f\"growth = {growth}\", deps=[final, src.get(\"growth\")], rule=\"growth must be between -50% and +80%\")\n    return state\n"
+}

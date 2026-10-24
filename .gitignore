@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Virtual environments
+.venv/
+venv/
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Databases and SQLite artifacts
+*.db
+*.sqlite
+*.sqlite3
+*.db-wal
+*.db-shm
+*.sqlite-wal
+*.sqlite-shm
+
+# Private or locally generated data
+data/local/
+data/raw/
+data/private/
+/data/runs/
+/data/sandbox/runtime/
+
+# Generated outputs and disposable worktrees
+/sandbox/
+/worktrees/
+results/generated/
+models/local/
+patches/worktrees/
+
+# Editors and operating system
+.vscode/
+.idea/
+.DS_Store

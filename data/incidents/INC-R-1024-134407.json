@@ -1,0 +1,61 @@
+{
+  "schema_version": "1.0",
+  "incident_id": "INC-R-1024-134407",
+  "run_id": "R-1024-134407",
+  "source_run_id": "R-1024-134407",
+  "task_summary": "ACME revenue growth (separator bug)",
+  "observed_pattern": "Step 4 (extract_revenue) gave revenue = 1240 instead of revenue = 12400",
+  "expected_behavior": "extract_revenue should give revenue = 12400",
+  "observed_behavior": "extract_revenue gave revenue = 1240",
+  "first_deviation_event_id": "e04",
+  "failure_category": "state_or_dataflow",
+  "label_status": "verified",
+  "root_cause_status": "verified",
+  "root_cause_summary": null,
+  "root_cause_hypotheses": [
+    "The tests expect specific revenue values without scaling by 100, or the string '12,400' should just be parsed as 12400.",
+    "Revenue should be parsed as 12400 without multiplying by 100, matching test_extract_reads_thousands_separator and expected value.",
+    "All tests should pass with the correct revenue extraction."
+  ],
+  "verified_root_cause": null,
+  "evidence_refs": [
+    "e04",
+    "agent.py:35",
+    "test_agent.py:21"
+  ],
+  "affected_event_ids": [
+    "e05",
+    "e06",
+    "e07",
+    "e08",
+    "e09",
+    "e10",
+    "e11",
+    "e12"
+  ],
+  "downstream_event_ids": [
+    "e05",
+    "e06",
+    "e07",
+    "e08",
+    "e09",
+    "e10",
+    "e11",
+    "e12"
+  ],
+  "fix_ref": "patches/R-1024-134407.diff",
+  "verified_correction": "Changed line 38 in agent.py from `value = int(float(txt.replace(\",\", \".\")) * 100)` to `value = int(float(txt.replace(\",\", \"\")))`.",
+  "test_refs": [
+    "test_agent.py"
+  ],
+  "regression_test_refs": [],
+  "replay_status": "passed",
+  "data_origin": "real_local_run",
+  "provenance": "investigated by gemini",
+  "training_eligible": false,
+  "training_eligibility": "pending_review",
+  "review_status": "pending",
+  "dataset_version": "dataset-v1",
+  "created_at": "2026-10-24T08:16:54.870046Z",
+  "reviewed_at": null
+}

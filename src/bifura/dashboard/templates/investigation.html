@@ -1,0 +1,996 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bifura — Investigation</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap">
+<!--
+  Design and motion references
+  Layout · app-shell pattern (sidebar · top bar · work area · right inspector) seen in Manus and Perplexity; used as structure only.
+  Spacing · 4-pt grid (Material Design 3 layout): every gap is 4, 8, 12, 16, 20, 24 or 32 px.
+  Type · Material Design 3 type scale idea, tuned for a dense tool: 11 meta · 12 caption · 13 UI · 14 body · 15 lead · 20 title.
+  Icons · Lucide-style 24px line icons, 1.75 stroke, drawn inline.
+  Motion
+   1. Apple, "Designing Fluid Interfaces" (WWDC 2018): graph, camera and focus ring run on damped springs (response + damping ratio).
+   2. Material Design 3 motion: easing tokens standard (.2,0,0,1), emphasized-decelerate (.05,.7,.1,1), emphasized-accelerate (.3,0,.8,.15);
+      duration tokens short4 200ms · medium2 300ms · long2 500ms; patterns: container transform (circle → card),
+      shared axis X (inspector tabs), fade through (inspector content swap).
+   3. Thomas & Johnston, "The Illusion of Life": anticipation, follow-through, slow-in/slow-out, overlapping action.
+   4. Brysbaert (2019), J. Memory and Language: ~238 wpm silent reading → ~250 ms per word of narrative.
+   5. Nielsen (1993) response-time limits: hover/press feedback ≤100 ms, each beat of the story ≈1 s.
+-->
+<style>
+:root{--bg:#0d0d0e;--pn:#131314;--card:#18191b;--ln:#26272a;--ln2:#3c3d41;--ink:#ecebe7;--mut:#8d8b86;--acc:#ff6b3d;--sage:#8fd1a6;--blue:#7f9cf0;
+--mono:"Geist Mono",ui-monospace,Menlo,monospace;--sans:"Geist",system-ui,-apple-system,"Segoe UI",sans-serif;
+--e-std:cubic-bezier(.2,0,0,1);--e-out:cubic-bezier(.05,.7,.1,1);--e-in:cubic-bezier(.3,0,.8,.15);--blend:screen;--hov:color-mix(in srgb,var(--ink) 6%,transparent);
+box-sizing:border-box}
+@media (prefers-color-scheme:light){:root:not([data-theme="dark"]){--bg:#f3f1ec;--pn:#faf9f6;--card:#fff;--ln:#dedbd3;--ln2:#bdb9ae;--ink:#1b1a18;--mut:#6f6c64;--acc:#d4481a;--sage:#2f7d55;--blue:#5b7bd6;--blend:multiply}}
+:root[data-theme="light"]{--bg:#f3f1ec;--pn:#faf9f6;--card:#fff;--ln:#dedbd3;--ln2:#bdb9ae;--ink:#1b1a18;--mut:#6f6c64;--acc:#d4481a;--sage:#2f7d55;--blue:#5b7bd6;--blend:multiply}
+*{box-sizing:border-box}html,body{height:100%;margin:0}
+body{color:var(--ink);font:13px/1.5 var(--sans);font-feature-settings:"tnum";overflow:hidden;-webkit-font-smoothing:antialiased;
+ background:radial-gradient(900px 520px at 80% 8%,color-mix(in srgb,var(--acc) 9%,transparent),transparent 70%),radial-gradient(900px 620px at 30% 95%,color-mix(in srgb,#5b7bd6 10%,transparent),transparent 70%),var(--bg)}
+button{font:500 13px var(--sans);color:var(--ink);background:none;border:0;cursor:pointer;padding:0}
+.ic{width:16px;height:16px;flex:none}
+.ibtn{width:32px;height:32px;display:grid;place-items:center;border-radius:8px;color:var(--mut);transition:background .15s var(--e-std),color .15s}
+.ibtn:hover{background:var(--hov);color:var(--ink)}.ibtn.on{color:var(--ink);background:var(--hov)}
+.x{color:var(--acc)}.g{color:var(--sage)}
+::-webkit-scrollbar{width:8px;height:8px}::-webkit-scrollbar-thumb{background:var(--ln);border-radius:8px}
+
+/* ── shell ─────────────────────────────── */
+.app{position:fixed;inset:0;display:grid;grid-template-columns:var(--sw,248px) minmax(0,1fr);grid-template-rows:minmax(0,1fr);height:100%;transition:grid-template-columns .4s var(--e-std)}
+.app.mini{--sw:60px}
+
+/* sidebar */
+.side{display:flex;flex-direction:column;min-width:0;overflow:hidden;border-right:1px solid color-mix(in srgb,var(--ln) 70%,transparent);background:color-mix(in srgb,var(--pn) 70%,transparent);backdrop-filter:blur(16px)}
+.brand{height:56px;display:flex;align-items:center;gap:8px;padding:0 12px 0 16px;flex:none}
+.wm{display:flex;align-items:center;gap:10px;font:600 16px var(--sans);letter-spacing:-.01em;white-space:nowrap}
+.wm svg{width:22px;height:22px;flex:none;stroke:var(--acc);fill:none;stroke-width:1.8;stroke-linecap:round;filter:drop-shadow(0 0 6px color-mix(in srgb,var(--acc) 55%,transparent))}
+.brand .sp{flex:1}
+.nav{padding:4px 8px;display:flex;flex-direction:column;gap:2px}
+.nv{height:36px;display:flex;align-items:center;gap:12px;padding:0 10px;border-radius:8px;color:color-mix(in srgb,var(--ink) 88%,var(--mut));white-space:nowrap;font-size:13.5px;text-align:left;transition:background .15s var(--e-std)}
+.nv:hover{background:var(--hov)}.nv.on{background:color-mix(in srgb,var(--ink) 9%,transparent);color:var(--ink)}
+.nv .ic{color:var(--mut)}.nv.on .ic{color:var(--ink)}
+.nv .ct{margin-left:auto;font:500 11px var(--mono);color:var(--mut)}
+.nv.prim{border:1px solid var(--ln);margin-bottom:6px}
+.sh{padding:20px 18px 6px;font:500 11.5px var(--sans);color:var(--mut);white-space:nowrap}
+.rn{height:34px;display:flex;align-items:center;gap:10px;padding:0 10px;margin:0 8px;border-radius:8px;font-size:13px;white-space:nowrap;color:color-mix(in srgb,var(--ink) 85%,var(--mut));transition:background .15s}
+.rn:hover{background:var(--hov)}.rn.on{background:color-mix(in srgb,var(--ink) 9%,transparent);color:var(--ink)}
+.rn i{width:7px;height:7px;border-radius:50%;flex:none;margin:0 4px;background:var(--mut);transition:background .6s}
+.rn i.f{background:var(--acc)}.rn i.k{background:var(--sage)}
+.rn span{overflow:hidden;text-overflow:ellipsis}
+.rn small{margin-left:auto;font:11px var(--mono);color:var(--mut)}
+.foot{margin-top:auto;padding:12px;display:flex;align-items:center;gap:10px;border-top:1px solid color-mix(in srgb,var(--ln) 70%,transparent);white-space:nowrap}
+.av{width:28px;height:28px;border-radius:50%;flex:none;display:grid;place-items:center;font:600 12px var(--sans);color:#fff;background:linear-gradient(135deg,var(--acc),#5b7bd6)}
+.foot b{font-weight:500;font-size:13px;overflow:hidden;text-overflow:ellipsis}
+.foot .ibtn{margin-left:auto}
+.app.mini .lbl,.app.mini .sh,.app.mini .ct,.app.mini .rn span,.app.mini .rn small,.app.mini .foot b,.app.mini .foot .ibtn,.app.mini .wm b{opacity:0;pointer-events:none}
+.lbl,.sh,.ct,.rn span,.rn small,.foot b,.wm b{transition:opacity .25s var(--e-std)}
+.app.mini .brand{padding:0 14px}.app.mini .wm{display:none}
+.hd .acts2{pointer-events:none}.st.done .hd .acts2{pointer-events:auto}
+
+/* main */
+.main{display:grid;grid-template-rows:56px minmax(0,1fr);min-width:0;min-height:0}
+.top{display:flex;align-items:center;gap:12px;padding:0 16px 0 24px;border-bottom:1px solid color-mix(in srgb,var(--ln) 60%,transparent)}
+.ttl{display:flex;align-items:center;gap:8px;font:600 15px var(--sans);letter-spacing:-.01em;padding:6px 8px;margin-left:-8px;border-radius:8px;transition:background .15s}
+.ttl:hover{background:var(--hov)}.ttl small{font:500 13px var(--sans);color:var(--mut)}
+.chip{display:inline-flex;align-items:center;gap:6px;font:500 12px var(--sans);color:var(--acc);border:1px solid color-mix(in srgb,var(--acc) 55%,transparent);padding:3px 10px;border-radius:99px;white-space:nowrap;transition:color .6s,border-color .6s}
+.chip::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.chip.ok{color:var(--sage);border-color:color-mix(in srgb,var(--sage) 55%,transparent)}
+.top .sp{flex:1}
+.seg{display:flex;padding:3px;border:1px solid var(--ln);border-radius:10px;gap:2px}
+.seg button{padding:4px 10px;border-radius:7px;font-size:12.5px;color:var(--mut);transition:background .2s var(--e-std),color .2s}
+.seg button.on{background:color-mix(in srgb,var(--ink) 11%,transparent);color:var(--ink)}
+.pill{font:500 11px var(--mono);border:1px solid var(--ln);color:var(--mut);padding:3px 10px;border-radius:99px;white-space:nowrap}
+
+.work{display:grid;grid-template-columns:minmax(360px,432px) minmax(0,1fr) var(--iw,0px);grid-template-rows:minmax(0,1fr);min-height:0;transition:grid-template-columns .5s var(--e-out)}
+.app.insp .work{--iw:400px}
+
+/* ── story column ──────────────────────── */
+#act{position:relative;overflow:auto;border-right:1px solid color-mix(in srgb,var(--ln) 60%,transparent);min-height:0}
+.story{padding:24px 24px 16px;min-height:calc(100% - 60px)}
+.brief{border:1px solid var(--ln);border-radius:16px;padding:16px 16px 8px;background:color-mix(in srgb,var(--card) 70%,transparent);margin-bottom:24px}
+.brief h3{margin:0 0 8px;display:flex;align-items:center;gap:8px;font:500 12px var(--sans);color:var(--mut)}
+.brief h3 .live{width:7px;height:7px;border-radius:50%;background:var(--acc);animation:br 2.4s var(--e-std) infinite}
+.brief.idle h3 .live{animation:none;background:var(--sage)}
+@keyframes br{50%{opacity:.35}}
+.brief h3 .clk{margin-left:auto;font:11px var(--mono)}
+.kv{display:grid;grid-template-columns:76px 1fr;gap:12px;padding:8px 0;border-top:1px solid var(--ln);font-size:13.5px}
+.kv small{font:500 12px var(--sans);color:var(--mut);padding-top:1px}.kv b{font-weight:500}
+.kv.got{grid-template-rows:0fr;padding:0;border-top-color:transparent;opacity:0;transition:opacity .5s var(--e-std),padding .5s var(--e-std),border-color .5s}
+.kv.got.on{padding:8px 0;border-top-color:var(--ln);opacity:1}.kv.got>*{overflow:hidden}
+
+ol{list-style:none;margin:0;padding:0}
+.st{position:relative;display:flex;gap:12px}
+.st:not(:last-child)::before,.st:not(:last-child)::after{content:"";position:absolute;left:13.5px;top:32px;bottom:4px;width:1px;background:var(--ln)}
+.st:not(:last-child)::after{background:color-mix(in srgb,var(--ink) 70%,transparent);transform:scaleY(0);transform-origin:top;transition:transform 1.1s var(--e-std)}
+.st.done::after{transform:scaleY(1)}
+.gl{width:28px;height:28px;flex:none;position:relative;border-radius:50%;border:1px solid var(--ln);background:var(--pn);display:grid;place-items:center;color:var(--mut);transition:background .5s,border-color .5s,color .5s}
+.gl .ic{width:14px;height:14px;transition:opacity .3s,transform .4s var(--e-out)}
+.gl .ck{position:absolute;opacity:0;transform:scale(.6)}
+.st.run .gl{border-color:var(--acc);color:var(--acc);box-shadow:0 0 0 4px color-mix(in srgb,var(--acc) 14%,transparent)}
+.st.run .gl::after{content:"";position:absolute;inset:-5px;border-radius:50%;border:1px solid color-mix(in srgb,var(--acc) 40%,transparent);animation:ring 2.4s var(--e-std) infinite}
+@keyframes ring{0%{opacity:.8;transform:scale(.85)}100%{opacity:0;transform:scale(1.35)}}
+.st.done .gl{background:var(--ink);border-color:var(--ink);color:var(--bg)}
+.st.done .gl .si{opacity:0;transform:scale(.6)}.st.done .gl .ck{opacity:1;transform:none}
+.bd{flex:1;min-width:0;padding:2px 0 20px}
+.hd{display:flex;gap:8px;align-items:center;min-height:24px}
+.st.done .hd{cursor:pointer}
+.tt{font:500 14px var(--sans);letter-spacing:-.005em;color:var(--mut);transition:color .5s}
+.st.run .tt,.st.done .tt{color:var(--ink)}
+.tag{font:500 10.5px var(--mono);padding:1px 7px;border-radius:6px;border:1px solid var(--ln2);color:var(--mut);white-space:nowrap}
+.tag.h{color:var(--acc);border-color:color-mix(in srgb,var(--acc) 55%,transparent)}.tag.v{color:var(--sage);border-color:color-mix(in srgb,var(--sage) 55%,transparent)}
+.hd .acts2{margin-left:auto;display:flex;gap:2px;opacity:0;transition:opacity .2s}
+.st.done .hd .acts2{opacity:.75}.st.done:hover .hd .acts2{opacity:1}
+.hd .ibtn{width:26px;height:26px;border-radius:7px}.hd .ibtn .ic{width:14px;height:14px}
+.st.done.open .chv{transform:rotate(180deg)}.chv{transition:transform .4s var(--e-std)}
+.find{display:grid;grid-template-rows:0fr;opacity:0;transition:grid-template-rows .5s var(--e-std),opacity .4s var(--e-std)}
+.find>div{overflow:hidden;display:flex;gap:8px;align-items:baseline;font-size:13px;color:var(--mut)}
+.find small{font:500 12px var(--sans);flex:none}
+.find a{color:var(--ink);font-weight:500;cursor:pointer;text-decoration:underline;text-decoration-color:var(--ln2);text-underline-offset:3px;transition:color .15s,text-decoration-color .15s}
+.find a:hover{color:var(--acc);text-decoration-color:var(--acc)}
+.find .x2{color:var(--acc)}.find .g2{color:var(--sage)}
+.st.done .find{grid-template-rows:1fr;opacity:1}.st.done .find>div{padding-top:4px}
+.bw{display:grid;grid-template-rows:0fr;transition:grid-template-rows .6s var(--e-std)}
+.bw>div{overflow:hidden;min-height:0}
+.st.run .bw,.st.done.open .bw{grid-template-rows:1fr}
+.say,.tech{margin:8px 0 0;opacity:0;transform:translateY(4px);filter:blur(3px);transition:opacity .5s var(--e-out),transform .5s var(--e-out),filter .5s var(--e-out)}
+.say.in,.tech.in{opacity:1;transform:none;filter:none}
+.say{font:400 15px/1.55 var(--sans);letter-spacing:-.006em;text-wrap:pretty;color:color-mix(in srgb,var(--ink) 92%,var(--mut))}
+.tech{font:12px/1.6 var(--mono);color:var(--mut)}
+body:not(.eng) .tech{display:none}body.eng .say{display:none}
+.now{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:12.5px;color:var(--mut);height:18px;opacity:0;transition:opacity .3s}
+.now.on{opacity:1}.now i{width:5px;height:5px;border-radius:50%;background:var(--acc);animation:br 1.6s var(--e-std) infinite}
+.body{padding-top:8px;font:12px/1.65 var(--mono)}
+
+.rise{animation:rs .6s var(--e-out) both}
+@keyframes rs{from{opacity:0;transform:translateY(6px);filter:blur(3px)}}
+.ln{color:var(--mut);padding:2px 0;white-space:pre-wrap}.ln b{color:var(--ink);font-weight:500}
+.evl{display:grid;grid-template-columns:28px 88px 1fr;gap:0 8px}.evl>div{display:contents}.evl u{text-decoration:none;color:var(--mut)}.evl span{color:var(--mut)}.evl b{font-weight:500}
+.box{border:1px solid var(--ln);border-radius:12px;background:color-mix(in srgb,var(--card) 80%,transparent);margin:8px 0 4px;overflow:hidden}
+.tb{width:100%;border-collapse:collapse}.tb th{color:var(--mut);font-weight:400;text-align:left;padding:8px 12px;border-bottom:1px solid var(--ln)}
+.tb td{padding:8px 12px;border-top:1px solid var(--ln)}.tb tr:nth-child(2) td{border-top:0}
+.io{display:grid;grid-template-columns:auto 1fr;gap:4px 16px;padding:12px}
+.dig{display:flex;align-items:center;gap:8px;width:100%;padding:10px 12px;border-top:1px solid var(--ln);font:500 12.5px var(--sans);color:var(--ink);transition:background .15s}
+.dig:hover{background:var(--hov)}.dig .ic{width:14px;height:14px;color:var(--acc)}.dig span{margin-left:auto;color:var(--mut)}
+.br{margin:8px 0}.br div{display:flex;justify-content:space-between;color:var(--ink)}.br div span:last-child{color:var(--mut)}
+.br i{display:block;height:3px;background:var(--ln);margin-top:6px;border-radius:2px;overflow:hidden}
+.br u{display:block;height:100%;width:0;background:var(--ln2);transition:width 1.4s var(--e-std)}.br.f u{background:var(--acc)}
+.pol{display:flex;align-items:center;gap:8px;padding:8px 12px;border-top:1px solid var(--ln)}.pol:first-child{border-top:0}
+.pol .ic{width:14px;height:14px}.pol.B .ic{color:var(--acc)}.pol.A .ic{color:var(--sage)}
+.pol em{margin-left:auto;font-style:normal;font-weight:500;font-size:11px}.pol.B em{color:var(--acc)}.pol.A em{color:var(--sage)}
+.pol.B span{text-decoration:line-through;text-decoration-color:color-mix(in srgb,var(--acc) 60%,transparent)}
+.code{padding:6px 0}
+.cl{display:flex;gap:12px;padding:0 12px;white-space:pre;border-left:2px solid transparent}
+.cl u{text-decoration:none;color:var(--mut);width:20px;text-align:right;flex:none;opacity:.7}
+.cl.hit{background:color-mix(in srgb,var(--acc) 14%,transparent);border-left-color:var(--acc);color:var(--acc)}
+.cl.del{background:color-mix(in srgb,var(--acc) 11%,transparent);color:var(--acc);border-left-color:var(--acc)}
+.cl.add{background:color-mix(in srgb,var(--sage) 14%,transparent);color:var(--sage);border-left-color:var(--sage)}
+.term{padding:8px 12px}
+.res{margin-top:8px;border:1px solid color-mix(in srgb,var(--sage) 50%,transparent);border-radius:16px;padding:16px;background:color-mix(in srgb,var(--card) 80%,transparent)}
+.res h4{margin:0 0 4px;display:flex;align-items:center;gap:8px;font:600 15px var(--sans);letter-spacing:-.01em}.res h4 .ic{color:var(--sage)}
+.res p{margin:0 0 12px;color:var(--mut);font-size:12.5px}
+.rr{display:flex;gap:12px;padding:8px 0;border-top:1px solid var(--ln);font-size:13px}
+.rr .tag{align-self:flex-start;flex:none;width:84px;text-align:center}
+.cpy{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.btn{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 12px;border:1px solid var(--ln2);border-radius:8px;font-size:12.5px;transition:border-color .15s,background .15s}
+.btn:hover{border-color:var(--ink)}.btn .ic{width:14px;height:14px;color:var(--mut)}
+
+/* player: pinned at the bottom of the story */
+.player{position:sticky;bottom:0;display:flex;align-items:center;gap:8px;padding:12px 24px 16px;background:linear-gradient(to top,var(--bg) 55%,transparent);z-index:2}
+.player .ibtn{border:1px solid var(--ln)}
+.player .spd{width:auto;padding:0 10px;font:500 12px var(--mono)}
+.segs{flex:1;display:flex;gap:4px;margin-left:4px}.segs i{flex:1;height:3px;border-radius:2px;background:var(--ln);position:relative;overflow:hidden}
+.segs i::after{content:"";position:absolute;inset:0;background:var(--acc);transform:scaleX(0);transform-origin:left;transition:transform 1.2s var(--e-std)}
+.segs i.on::after{transform:scaleX(.45)}.segs i.d::after{transform:scaleX(1);background:var(--ink)}
+
+/* ── graph ─────────────────────────────── */
+#stage{position:relative;min-width:0;overflow:hidden;
+ background-image:linear-gradient(color-mix(in srgb,var(--ln) 20%,transparent) 1px,transparent 1px),linear-gradient(90deg,color-mix(in srgb,var(--ln) 20%,transparent) 1px,transparent 1px),linear-gradient(color-mix(in srgb,var(--ln) 48%,transparent) 1px,transparent 1px),linear-gradient(90deg,color-mix(in srgb,var(--ln) 48%,transparent) 1px,transparent 1px);
+ background-size:24px 24px,24px 24px,120px 120px,120px 120px;background-position:-1px -1px}
+#stage::after{content:"";position:absolute;inset:0;background:radial-gradient(ellipse at 50% 50%,transparent 55%,var(--bg) 105%);pointer-events:none}
+svg#sv{position:absolute;inset:0;width:100%;height:100%}
+.gbar{position:absolute;z-index:2;left:20px;right:16px;top:16px;display:flex;align-items:center;gap:8px;pointer-events:none}
+.gbar>*{pointer-events:auto}
+.gbar h2{margin:0;font:500 13px var(--sans);display:flex;align-items:center;gap:8px}.gbar h2 .ic{color:var(--mut)}
+.gbar .sp{flex:1}
+.gbar .ibtn{background:color-mix(in srgb,var(--pn) 70%,transparent);border:1px solid var(--ln);backdrop-filter:blur(10px)}
+.lg{position:absolute;left:20px;bottom:16px;display:flex;gap:16px;font:11px var(--mono);color:var(--mut);pointer-events:none;z-index:2}
+.lg span::before{content:"";display:inline-block;width:18px;border-top:1.5px solid var(--ln2);margin-right:6px;vertical-align:middle}.lg .d::before{border-top-style:dashed}
+.tel{position:absolute;right:16px;bottom:16px;font:11px var(--mono);color:var(--mut);z-index:2;pointer-events:none}
+.hint{position:absolute;left:50%;bottom:44px;transform:translate(-50%,6px);z-index:2;display:flex;align-items:center;gap:8px;padding:8px 14px;border:1px solid var(--ln);border-radius:99px;
+ background:color-mix(in srgb,var(--pn) 80%,transparent);backdrop-filter:blur(12px);font-size:12.5px;color:var(--mut);opacity:0;pointer-events:none;transition:opacity .5s var(--e-std),transform .5s var(--e-out)}
+.hint.on{opacity:1;transform:translate(-50%,0)}.hint .ic{width:14px;height:14px;color:var(--acc)}
+
+.n{cursor:pointer;opacity:0;transition:opacity .5s var(--e-std);color:var(--mut)}.n.vis{opacity:1}
+.cd{fill:var(--card);stroke:var(--ln2);stroke-width:1;transition:stroke .5s,fill .5s;filter:drop-shadow(0 8px 16px rgba(0,0,0,.22))}
+.n:hover .cd{stroke:var(--ink)}
+.n.sel .cd{stroke:var(--ink);stroke-width:1.6}
+.tg{font:500 8.5px var(--mono);fill:currentColor;letter-spacing:.2px}.lb{font:500 12px var(--sans);fill:var(--ink)}.sv{font:9.5px var(--mono);fill:var(--mut)}
+.n text,.n use{transition:opacity .5s var(--e-std),fill .5s}
+.n.orb text,.n.orb use{opacity:0}
+.n.orb .cd{fill:color-mix(in srgb,var(--oc,var(--acc)) 55%,var(--card));stroke:var(--oc,var(--acc));stroke-width:1.4;filter:drop-shadow(0 0 10px color-mix(in srgb,var(--oc,var(--acc)) 70%,transparent))}
+.n.morph text,.n.morph use{transition-delay:.3s}
+.n.dev,.n.hit{color:var(--acc)}
+.n.dev .cd,.n.hit .cd{stroke:var(--acc);stroke-width:1.5}
+.n.hit .cd{fill:color-mix(in srgb,var(--acc) 9%,var(--card));filter:drop-shadow(0 0 10px color-mix(in srgb,var(--acc) 35%,transparent))}
+.n.dev .cd{animation:glow 2.8s var(--e-std) infinite}
+@keyframes glow{0%,100%{filter:drop-shadow(0 0 6px color-mix(in srgb,var(--acc) 35%,transparent))}50%{filter:drop-shadow(0 0 18px color-mix(in srgb,var(--acc) 70%,transparent))}}
+.n.fixed{color:var(--sage)}
+.n.fixed .cd{stroke:var(--sage);stroke-width:1.5;fill:color-mix(in srgb,var(--sage) 8%,var(--card));filter:drop-shadow(0 0 12px color-mix(in srgb,var(--sage) 45%,transparent));animation:none}
+.e path.r{fill:none;stroke:var(--ln2);stroke-width:1.3;transition:stroke .5s}
+.e .r{stroke-dasharray:1;stroke-dashoffset:1}.e.vis .r{stroke-dashoffset:0;transition:stroke-dashoffset 1s var(--e-std),stroke .5s}
+.e.inf .r{stroke-dasharray:4 5;stroke-dashoffset:0;opacity:0;transition:opacity 1s var(--e-std),stroke .5s}.e.inf.vis .r{opacity:1}
+.e.on .r{stroke:var(--acc)}.e.ok .r{stroke:var(--sage)}
+.e .tip{fill:var(--ln2);opacity:0;transition:opacity .6s .6s,fill .5s}.e.vis .tip{opacity:1}.e.on .tip{fill:var(--acc)}.e.ok .tip{fill:var(--sage)}
+.el{font:9px var(--mono);fill:var(--mut);opacity:0;transition:opacity .5s;text-anchor:middle}.e.on .el,.e.sel .el{opacity:1}
+.pz{pointer-events:none}
+#fx{opacity:0;transition:opacity .4s var(--e-std)}#fx.on{opacity:1}
+#fx path{fill:none;stroke:var(--acc);stroke-width:1.5;stroke-linecap:round}
+#fx .pl{fill:var(--acc)}#fx text{font:500 10px var(--sans);fill:#fff}
+#fx.ok path{stroke:var(--sage)}#fx.ok .pl{fill:var(--sage)}
+
+/* big bang (unchanged) */
+#bb{position:absolute;z-index:1;left:50%;top:50%;width:160px;height:160px;margin:-80px;pointer-events:none;opacity:0;mix-blend-mode:var(--blend);filter:blur(4px);
+ background:radial-gradient(closest-side,color-mix(in srgb,var(--acc) 18%,#fff) 0%,color-mix(in srgb,var(--acc) 70%,#fff) 9%,var(--acc) 20%,color-mix(in srgb,var(--acc) 62%,#5b7bd6) 34%,color-mix(in srgb,#5b7bd6 55%,transparent) 50%,color-mix(in srgb,#5b7bd6 22%,transparent) 68%,color-mix(in srgb,#5b7bd6 7%,transparent) 84%,transparent 100%)}
+#bb.go{animation:bb2 2.6s var(--e-out) forwards}
+@keyframes bb2{0%{opacity:0;transform:scale(.08)}10%{opacity:1;transform:scale(.35)}16%{opacity:1;transform:scale(.28)}34%{opacity:.95;transform:scale(4.2)}100%{opacity:0;transform:scale(11)}}
+#hz{position:absolute;z-index:0;left:50%;top:50%;width:900px;height:620px;margin:-310px -450px;pointer-events:none;opacity:0;mix-blend-mode:var(--blend);
+ background:radial-gradient(closest-side,color-mix(in srgb,var(--acc) 26%,transparent) 0%,color-mix(in srgb,var(--acc) 12%,transparent) 30%,color-mix(in srgb,#5b7bd6 12%,transparent) 55%,color-mix(in srgb,#5b7bd6 4%,transparent) 78%,transparent 100%)}
+#hz.go{animation:hz 4.2s var(--e-std) forwards}
+@keyframes hz{0%{opacity:0;transform:scale(.2)}22%{opacity:1;transform:scale(.85)}60%{opacity:.55;transform:scale(1.15)}100%{opacity:0;transform:scale(1.35)}}
+.rip{fill:none;stroke:var(--acc);stroke-width:1.2;vector-effect:non-scaling-stroke;transform-box:fill-box;transform-origin:center;animation:rp 2.4s var(--e-out) forwards;pointer-events:none}
+.rip.ok{stroke:var(--sage)}@keyframes rp{from{transform:scale(1);opacity:.4}to{transform:scale(40);opacity:0}}
+.rip.boom{stroke:color-mix(in srgb,var(--acc) 55%,var(--ink));stroke-width:1;filter:blur(.6px);animation:rpb 2.2s var(--e-out) forwards}
+.rip.boom.b{stroke:color-mix(in srgb,#7f9cf0 70%,var(--ink))}
+@keyframes rpb{from{transform:scale(1);opacity:.32}to{transform:scale(70);opacity:0}}
+@media (prefers-color-scheme:light){:root:not([data-theme="dark"]) .rip.boom{animation-name:rpbl}}:root[data-theme="light"] .rip.boom{animation-name:rpbl}
+@keyframes rpbl{from{transform:scale(1);opacity:.16}to{transform:scale(70);opacity:0}}
+.sk{transform-box:fill-box;mix-blend-mode:var(--blend);animation:sk 1.8s cubic-bezier(.1,.7,.2,1) both}
+@keyframes sk{0%{transform:translate(0,0) scale(1.6);opacity:1}70%{opacity:.9}100%{transform:translate(var(--dx),var(--dy)) scale(.2);opacity:0}}
+
+/* ── deep dive inspector ───────────────── */
+.ins{min-width:0;overflow:hidden;border-left:1px solid color-mix(in srgb,var(--ln) 70%,transparent);background:color-mix(in srgb,var(--pn) 88%,transparent);backdrop-filter:blur(18px)}
+.ins-in{width:400px;height:100%;display:flex;flex-direction:column;opacity:0;transform:translateX(16px);transition:opacity .2s var(--e-in),transform .2s var(--e-in)}
+.app.insp .ins-in{opacity:1;transform:none;transition:opacity .4s .1s var(--e-out),transform .5s .1s var(--e-out)}
+.ih{padding:16px 16px 0 20px;flex:none}
+.ih .r1{display:flex;align-items:center;gap:8px;color:var(--mut);font:500 12px var(--sans)}
+.ih .r1 .ic{width:14px;height:14px}.ih .r1 .sp{flex:1}
+.ih .r1 .ibtn{width:28px;height:28px}
+.ih h2{margin:8px 0 8px;font:600 20px/1.25 var(--sans);letter-spacing:-.015em}
+.stt{display:inline-flex;align-items:center;gap:6px;font:500 12px var(--sans);padding:3px 10px;border-radius:99px;border:1px solid var(--ln2);color:var(--mut)}
+.stt::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.stt.dev{color:var(--acc);border-color:color-mix(in srgb,var(--acc) 55%,transparent);background:color-mix(in srgb,var(--acc) 8%,transparent)}
+.stt.hit,.stt.cause{color:var(--acc);border-color:color-mix(in srgb,var(--acc) 40%,transparent)}
+.stt.fixed,.stt.ok{color:var(--sage);border-color:color-mix(in srgb,var(--sage) 45%,transparent)}
+.ih .meta{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:16px}
+.ih .meta span{font:11px var(--mono);color:var(--mut)}
+.tabs{position:relative;display:flex;gap:4px;border-bottom:1px solid var(--ln)}
+.tabs button{position:relative;padding:8px 10px 12px;font-size:13px;color:var(--mut);transition:color .2s}
+.tabs button:hover,.tabs button.on{color:var(--ink)}
+.tabs .ink{position:absolute;bottom:-1px;height:2px;border-radius:2px;background:var(--ink);transition:left .4s var(--e-std),width .4s var(--e-std)}
+.ib{flex:1;overflow:auto;padding:20px 20px 40px}
+.pane{animation:sx .35s var(--e-out) both}
+.pane.l{animation-name:sxl}
+@keyframes sx{from{opacity:0;transform:translateX(14px)}}@keyframes sxl{from{opacity:0;transform:translateX(-14px)}}
+.sec{margin-bottom:24px}
+.sec h4{margin:0 0 8px;display:flex;align-items:center;gap:8px;font:500 12px var(--sans);color:var(--mut)}
+.sec h4 .ic{width:14px;height:14px}
+.lead{margin:0;font:400 14.5px/1.6 var(--sans);text-wrap:pretty}
+.ea{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--ln);border-radius:12px;overflow:hidden}
+.ea div{padding:12px}.ea div+div{border-left:1px solid var(--ln)}
+.ea small{display:block;font:500 11.5px var(--sans);color:var(--mut);margin-bottom:4px}
+.ea b{font:500 13px var(--mono)}
+.jr{position:relative;padding-left:20px}
+.jr::before{content:"";position:absolute;left:5px;top:10px;bottom:10px;width:1px;background:var(--ln2)}
+.js{position:relative;padding:6px 0}
+.js::before{content:"";position:absolute;left:-19px;top:12px;width:9px;height:9px;border-radius:50%;background:var(--pn);border:1.5px solid var(--ln2)}
+.js.bad::before{border-color:var(--acc);background:var(--acc)}.js.good::before{border-color:var(--sage);background:var(--sage)}
+.js small{display:block;font:12px var(--sans);color:var(--mut)}
+.js b{font:500 13px var(--mono)}
+.chk{display:flex;align-items:center;gap:10px;width:100%;padding:8px 10px;border-radius:8px;text-align:left;font-size:13px;transition:background .15s}
+.chk:hover{background:var(--hov)}
+.chk .ic{width:15px;height:15px}.chk .ok{color:var(--sage)}.chk .bad{color:var(--acc)}
+.chk span{color:var(--mut);margin-left:auto;font:11.5px var(--mono)}
+.fl{display:flex;gap:12px;width:100%;padding:12px;border:1px solid var(--ln);border-radius:12px;margin-bottom:8px;text-align:left;transition:border-color .15s,background .15s}
+.fl:hover{border-color:var(--ln2);background:var(--hov)}
+.fl .nic{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;border:1px solid var(--ln);color:var(--mut);flex:none}
+.fl .nic .ic{width:14px;height:14px}
+.fl b{display:block;font-weight:500;font-size:13px}
+.fl p{margin:2px 0 0;font-size:12.5px;color:var(--mut);line-height:1.5}
+.fl .k{display:inline-flex;gap:6px;align-items:center;margin-top:6px;font:11px var(--mono);color:var(--mut)}
+.fl .k i{font-style:normal;border:1px solid var(--ln2);border-radius:5px;padding:0 6px}
+.fl .k i.inf{border-style:dashed}
+.fl.hot .nic{color:var(--acc);border-color:color-mix(in srgb,var(--acc) 50%,transparent)}
+.fl.cool .nic{color:var(--sage);border-color:color-mix(in srgb,var(--sage) 50%,transparent)}
+.ev{display:flex;gap:12px;padding:12px 0;border-top:1px solid var(--ln)}.ev:first-child{border-top:0;padding-top:0}
+.ev>.ic{margin-top:2px;color:var(--mut)}
+.ev b{display:block;font-weight:500;font-size:13px}.ev p{margin:2px 0 0;color:var(--mut);font-size:12.5px}
+.ev a{color:var(--ink);cursor:pointer;text-decoration:underline;text-decoration-color:var(--ln2);text-underline-offset:3px}.ev a:hover{color:var(--acc)}
+.raw{margin:0;padding:12px;border:1px solid var(--ln);border-radius:12px;background:color-mix(in srgb,var(--card) 80%,transparent);font:11.5px/1.6 var(--mono);white-space:pre-wrap;word-break:break-word;color:var(--mut)}
+.raw .k{color:var(--ink)}.raw .s{color:var(--sage)}.raw .bad{color:var(--acc)}
+.empty{padding:40px 8px;text-align:center;color:var(--mut)}.empty .ic{width:28px;height:28px;margin-bottom:12px}
+
+#toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,10px);background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:10px;font:500 12.5px var(--sans);opacity:0;transition:.3s var(--e-std);pointer-events:none;z-index:9}
+#toast.on{opacity:1;transform:translate(-50%,0)}
+
+.app.insp .tel{opacity:0}.tel{transition:opacity .3s}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.01s!important;transition-duration:.01s!important}}
+@media (max-width:1180px){.app{--sw:60px}.app .lbl,.app .sh,.app .ct,.app .rn span,.app .rn small,.app .foot b,.app .foot .ibtn,.app .wm b,.tg-side{opacity:0;pointer-events:none}
+ .app.insp .work{grid-template-columns:minmax(320px,380px) 0 400px}}
+@media (max-width:860px){.app{grid-template-columns:1fr}.side{display:none}
+ .work{grid-template-columns:1fr;grid-template-rows:40% 1fr}#stage{order:-1;border-bottom:1px solid var(--ln)}#act{border-right:0}
+ .top .pill,.top .ttl small{display:none}.top{padding:0 12px;gap:8px}
+ .ins{position:fixed;inset:auto 0 0 0;height:78%;border-left:0;border-top:1px solid var(--ln);border-radius:18px 18px 0 0;z-index:5;transform:translateY(100%);transition:transform .5s var(--e-out)}
+ .app.insp .ins{transform:none}.app.insp .work{grid-template-columns:1fr}.ins-in{width:100%}}
+/* added for the Streamlit integration: REVIEW decisions and empty states */
+.pol.R .ic,.pol.R em{color:var(--blue)}
+.empty b{color:var(--ink);font-weight:500}
+.tag:empty{display:none}
+/* run controls: start button, step-by-step presenter mode */
+.go{display:none;align-items:center;gap:12px;padding:12px 0 8px;border-top:1px solid var(--ln)}
+.app.ready .go{display:flex}
+.cta{display:inline-flex;align-items:center;gap:8px;height:36px;padding:0 16px;border-radius:10px;background:var(--acc);color:#fff;font:600 13px var(--sans);
+ box-shadow:0 0 0 0 color-mix(in srgb,var(--acc) 50%,transparent);animation:cta 2.4s var(--e-std) infinite;transition:transform .15s var(--e-std),filter .15s}
+.cta:hover{filter:brightness(1.08)}.cta:active{transform:scale(.97)}.cta .ic{width:14px;height:14px}
+@keyframes cta{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--acc) 45%,transparent)}70%,100%{box-shadow:0 0 0 10px transparent}}
+.go small{font:12px var(--sans);color:var(--mut)}
+kbd{font:500 11px var(--mono);border:1px solid var(--ln2);border-bottom-width:2px;border-radius:5px;padding:0 5px;color:var(--ink)}
+.player .seg{padding:2px;border-radius:9px}.player .seg button{padding:3px 8px;font-size:11.5px}
+#nx{display:none}.app.stepm #nx{display:grid}
+#nx.wait{border-color:var(--acc);color:var(--acc);animation:br 1.6s var(--e-std) infinite}
+/* embedded in Streamlit: Streamlit's sidebar holds the controls, so hide this one */
+.app.embedded{grid-template-columns:minmax(0,1fr)!important}.app.embedded .side{display:none}
+.app.embedded .top{padding-left:128px}  /* room for Streamlit's floating "☰ Controls" button */
+/* story panel can be hidden so the graph takes the full width */
+.app.nostory .work{grid-template-columns:0 minmax(0,1fr) var(--iw,0px)!important}
+.app.nostory #act{border-right:0;overflow:hidden}
+/* labelled toggle buttons (story panel / graph size) */
+.tbtn{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 10px;border:1px solid var(--ln2);border-radius:8px;
+ font:500 12.5px var(--sans);color:var(--ink);background:color-mix(in srgb,var(--pn) 70%,transparent);white-space:nowrap;
+ transition:border-color .15s,color .15s,background .15s}
+.tbtn:hover{border-color:var(--acc);color:var(--acc)}.tbtn .ic{width:14px;height:14px}
+#fit.on{color:var(--acc);border-color:color-mix(in srgb,var(--acc) 55%,transparent);background:color-mix(in srgb,var(--acc) 10%,var(--pn))}
+.gbar .tbtn{backdrop-filter:blur(10px)}
+.pill.live{color:var(--sage);border-color:color-mix(in srgb,var(--sage) 50%,transparent)}
+/* fit narrower desktop widths: keep the header on one line, keep graph labels apart */
+.ttl{white-space:nowrap;min-width:0;overflow:hidden;text-overflow:ellipsis}.seg button,.pill{white-space:nowrap}
+.tel{top:58px;bottom:auto;right:20px;text-align:right;max-width:46%}
+.hint{white-space:nowrap;bottom:48px}
+@media (max-width:1320px){.ttl small{display:none}.pill{max-width:220px;overflow:hidden;text-overflow:ellipsis}}
+@media (max-width:1080px){.top .pill{display:none}.work{grid-template-columns:minmax(330px,380px) minmax(0,1fr) var(--iw,0px)}}
+</style>
+</head>
+<body>
+<!-- icon sprite: Lucide-style line icons, 24px grid -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+ <defs>
+  <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7.5"/><path d="m20.5 20.5-4.2-4.2"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M5 12h14M12 5v14"/></symbol>
+  <symbol id="i-pl" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M9 3v18"/></symbol>
+  <symbol id="i-pr" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M15 3v18"/></symbol>
+  <symbol id="i-act" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></symbol>
+  <symbol id="i-arch" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="5" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8M10 12h4"/></symbol>
+  <symbol id="i-spark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9.9 15.5a2 2 0 0 0-1.4-1.4l-6.1-1.6a.5.5 0 0 1 0-1l6.1-1.6a2 2 0 0 0 1.4-1.4l1.6-6.1a.5.5 0 0 1 1 0l1.6 6.1a2 2 0 0 0 1.4 1.4l6.1 1.6a.5.5 0 0 1 0 1l-6.1 1.6a2 2 0 0 0-1.4 1.4l-1.6 6.1a.5.5 0 0 1-1 0z"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/><path d="m9 12 2 2 4-4"/></symbol>
+  <symbol id="i-shx" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/><path d="m14.5 9.5-5 5M9.5 9.5l5 5"/></symbol>
+  <symbol id="i-db" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.9 1.9 0 0 0 3.4 0"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></symbol>
+  <symbol id="i-scale" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m16 16 3-8 3 8c-.9.6-1.9 1-3 1s-2.1-.4-3-1zM2 16l3-8 3 8c-.9.6-1.9 1-3 1s-2.1-.4-3-1zM7 21h10M12 3v18M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"/></symbol>
+  <symbol id="i-target" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/><path d="M22 12h-3M5 12H2M12 5V2M12 22v-3"/></symbol>
+  <symbol id="i-hist" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.8 9.8 0 0 0-6.7 2.7L3 8"/><path d="M3 3v5h5M12 7v5l4 2"/></symbol>
+  <symbol id="i-share" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4"/></symbol>
+  <symbol id="i-code" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m16 18 6-6-6-6M8 6l-6 6 6 6"/></symbol>
+  <symbol id="i-wrench" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.8-3.8a6 6 0 0 1-7.9 7.9l-6.9 6.9a2.1 2.1 0 0 1-3-3l6.9-6.9a6 6 0 0 1 7.9-7.9z"/></symbol>
+  <symbol id="i-replay" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.8 9.8 0 0 0-6.7 2.7L3 8"/><path d="M3 3v5h5"/></symbol>
+  <symbol id="i-flag" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1zM4 22v-7"/></symbol>
+  <symbol id="i-branch" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3v12"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></symbol>
+  <symbol id="i-term" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="18" rx="3"/><path d="m7 9 3 3-3 3M13 15h4"/></symbol>
+  <symbol id="i-inbox" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.5 5.1 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.5-6.9A2 2 0 0 0 16.8 4H7.2a2 2 0 0 0-1.7 1.1z"/></symbol>
+  <symbol id="i-send" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4z"/><path d="M22 2 11 13"/></symbol>
+  <symbol id="i-cc" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9.5"/><path d="m8.5 12 2.5 2.5 4.5-5"/></symbol>
+  <symbol id="i-cx" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9.5"/><path d="m15 9-6 6M9 9l6 6"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m21.7 18-8-14a2 2 0 0 0-3.4 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3"/><path d="M12 9v4M12 17h.01"/></symbol>
+  <symbol id="i-cd" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-cr" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M7 4.8v14.4a1 1 0 0 0 1.5.9l11.2-7.2a1 1 0 0 0 0-1.8L8.5 3.9A1 1 0 0 0 7 4.8z"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24" fill="currentColor" stroke="none"><rect x="6" y="4" width="4" height="16" rx="1.2"/><rect x="14" y="4" width="4" height="16" rx="1.2"/></symbol>
+  <symbol id="i-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="13" height="13" rx="2"/><path d="M4 16a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2"/></symbol>
+  <symbol id="i-fit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3M21 8V5a2 2 0 0 0-2-2h-3M3 16v3a2 2 0 0 0 2 2h3M16 21h3a2 2 0 0 0 2-2v-3"/></symbol>
+  <symbol id="i-graph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="6" height="6" rx="1.5"/><rect x="15" y="15" width="6" height="6" rx="1.5"/><rect x="15" y="3" width="6" height="6" rx="1.5"/><path d="M9 6h6M18 9v6"/></symbol>
+  <symbol id="i-dive" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7.5"/><path d="m20.5 20.5-4.2-4.2M11 8v6M8 11h6"/></symbol>
+  <symbol id="i-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7M7 7h10v10"/></symbol>
+  <symbol id="i-in" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0-4-4m4 4 4-4M4 21h16"/></symbol>
+  <symbol id="i-out" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21V9m0 0-4 4m4-4 4 4M4 3h16"/></symbol>
+  <symbol id="i-flask" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6M10 3v6.5L4.5 19a1.3 1.3 0 0 0 1.1 2h12.8a1.3 1.3 0 0 0 1.1-2L14 9.5V3M7 15h10"/></symbol>
+  <symbol id="i-book" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></symbol>
+  <symbol id="i-bulb" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M15 14c.2-1 .7-1.7 1.5-2.5A6 6 0 1 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5M9 18h6M10 22h4"/></symbol>
+  <symbol id="i-braces" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5a2 2 0 0 0 2 2h1M16 21h1a2 2 0 0 0 2-2v-5a2 2 0 0 1 2-2 2 2 0 0 1-2-2V5a2 2 0 0 0-2-2h-1"/></symbol>
+ </defs>
+</svg>
+
+<div class="app" id="app">
+ <!-- sidebar -->
+ <aside class="side">
+  <div class="brand">
+   <span class="wm"><svg viewBox="0 0 20 20"><path d="M3 10h6c3 0 3-5 8-5M9 10c3 0 3 5 8 5"/><circle cx="3" cy="10" r="1.3" style="fill:var(--acc)"/></svg><b style="font-weight:600">Bifura</b></span>
+   <span class="sp"></span>
+   <button class="ibtn tg-side" id="tgs" title="Collapse sidebar"><svg class="ic"><use href="#i-pl"/></svg></button>
+  </div>
+  <nav class="nav">
+   <button class="nv prim soon"><svg class="ic"><use href="#i-plus"/></svg><span class="lbl">New investigation</span></button>
+   <button class="nv soon"><svg class="ic"><use href="#i-search"/></svg><span class="lbl">Search</span></button>
+   <button class="nv on"><svg class="ic"><use href="#i-act"/></svg><span class="lbl">Investigations</span><span class="ct" id="runct"></span></button>
+   <button class="nv soon"><svg class="ic"><use href="#i-arch"/></svg><span class="lbl">Incidents</span><span class="ct" id="incct"></span></button>
+   <button class="nv soon"><svg class="ic"><use href="#i-spark"/></svg><span class="lbl">Predictions</span></button>
+   <button class="nv soon"><svg class="ic"><use href="#i-shield"/></svg><span class="lbl">Safety log</span></button>
+   <button class="nv soon"><svg class="ic"><use href="#i-db"/></svg><span class="lbl">Datasets</span></button>
+  </nav>
+  <div class="sh">Recent runs</div>
+  <div id="runs"></div>
+  <div class="foot"><span class="av">B</span><b>Bifura team</b><button class="ibtn soon" title="Notifications"><svg class="ic"><use href="#i-bell"/></svg></button></div>
+ </aside>
+
+ <div class="main">
+  <header class="top">
+   <button class="tbtn on" id="tgst" title="Hide the story panel so the graph fills the screen (G)"><svg class="ic"><use href="#i-pl"/></svg><span>Hide story</span></button>
+   <button class="ttl soon" id="ttl">—</button>
+   <span class="chip" id="st">—</span>
+   <span class="sp"></span>
+   <div class="seg" id="vw"><button class="on" data-v="plain">Plain English</button><button data-v="eng">Engineer</button></div>
+   <span class="pill" id="pill"></span>
+   <button class="ibtn" id="tgi" title="Deep dive panel"><svg class="ic"><use href="#i-pr"/></svg></button>
+  </header>
+
+  <div class="work">
+   <!-- story -->
+   <div id="act">
+    <div class="story">
+     <section class="brief" id="brief">
+      <h3><span class="live"></span><span id="stx">Starting</span><span class="clk" id="clk">00:00</span></h3>
+      <div class="kv"><small>Task</small><b id="ktask">—</b></div>
+      <div class="kv"><small>Expected</small><b id="kexp">—</b></div>
+      <div class="kv got" id="got"><small>Got</small><b id="kgot">—</b></div>
+      <div class="go"><button class="cta" id="go"><svg class="ic"><use href="#i-play"/></svg>Run investigation</button><small>or press <kbd>Space</kbd></small></div>
+     </section>
+     <ol id="steps"></ol>
+     <div id="res"></div>
+    </div>
+    <div class="player">
+     <button class="ibtn" id="pp" title="Pause"><svg class="ic"><use href="#i-pause"/></svg></button>
+     <button class="ibtn" id="rs" title="Restart"><svg class="ic"><use href="#i-replay"/></svg></button>
+     <button class="ibtn" id="nx" title="Next step (→)"><svg class="ic"><use href="#i-cr"/></svg></button>
+     <button class="ibtn spd" id="sp2" title="Speed">1×</button>
+     <div class="seg" id="md" title="Auto plays straight through. Step waits for you between steps."><button class="on" data-m="auto">Auto</button><button data-m="step">Step</button></div>
+     <div class="segs" id="segs"></div>
+    </div>
+   </div>
+
+   <!-- graph -->
+   <div id="stage">
+    <div class="gbar"><h2><svg class="ic"><use href="#i-graph"/></svg>Causal-impact graph</h2><span class="sp"></span>
+     <button class="tbtn" id="fit" title="Expand the graph to full width (G)"><svg class="ic"><use href="#i-fit"/></svg><span>Expand graph</span></button></div>
+    <div id="hz"></div>
+    <svg id="sv" viewBox="0 0 1000 560" preserveAspectRatio="xMidYMid meet">
+     <g id="eg"></g><g id="ng"></g>
+     <g id="fx"><path d="M-72 -24V-34H-62M62 -34H72V-24M72 24V34H62M-62 34H-72V24"/><g transform="translate(-72,-58)"><rect class="pl" id="pr" height="18" rx="9" width="90"/><text id="pt" x="10" y="12.5"></text></g></g>
+    </svg>
+    <div id="bb"></div>
+    <div class="lg"><span>recorded link</span><span class="d">inferred link</span></div>
+    <div class="tel" id="tel"></div>
+    <div class="hint" id="hint"><svg class="ic"><use href="#i-dive"/></svg>Click any step to dig into it</div>
+   </div>
+
+   <!-- deep dive -->
+   <aside class="ins" id="ins"><div class="ins-in">
+    <div class="ih">
+     <div class="r1"><svg class="ic"><use href="#i-dive"/></svg>Deep dive<span class="sp"></span>
+      <button class="ibtn" id="ipv" title="Previous step"><svg class="ic" style="transform:rotate(180deg)"><use href="#i-cr"/></svg></button>
+      <button class="ibtn" id="inx" title="Next step"><svg class="ic"><use href="#i-cr"/></svg></button>
+      <button class="ibtn" id="icl" title="Close"><svg class="ic"><use href="#i-x"/></svg></button></div>
+     <h2 id="ititle">—</h2>
+     <div class="meta" id="imeta"></div>
+     <div class="tabs" id="tabs"><button data-t="overview" class="on">Overview</button><button data-t="flow">Data flow</button><button data-t="evidence">Evidence</button><button data-t="raw">Raw event</button><i class="ink" id="tink"></i></div>
+    </div>
+    <div class="ib" id="ibody"></div>
+   </div></aside>
+  </div>
+ </div>
+</div>
+<div id="toast"></div>
+
+<script>
+/* Run data is injected by bifura.dashboard.viewer.get_dashboard_html():
+   {runs:[<format_bundle_for_ui payload>, ...], active:<run_id or null>} */
+const DATA=/*__BIFURA_DATA__*/null;
+
+const $=s=>document.querySelector(s),NS='http://www.w3.org/2000/svg',sv=$('#sv'),app=$('#app');
+const mk=(t,a,p)=>{const e=document.createElementNS(NS,t);for(const k in a)e.setAttribute(k,a[k]);p&&p.appendChild(e);return e};
+const ico=(id,cls='ic',st='')=>`<svg class="${cls}"${st?` style="${st}"`:''}><use href="#i-${id}"/></svg>`;
+const RM=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const esc=s=>String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const pad=n=>String(n).padStart(2,'0');
+const plural=(n,w)=>`${n} ${w}${n===1?'':'s'}`;
+const has=v=>v!=null&&v!==''&&v!=='—';
+
+/* springs (Apple WWDC18 "Designing Fluid Interfaces") */
+const SP=(response,damping)=>({k:(2*Math.PI/response)**2,c:4*Math.PI*damping/response});
+const P={launch:SP(1.0,.86),tilt:SP(.75,.55),land:SP(.62,.74),cam:SP(1.3,1),fx:SP(.7,.92),soft:SP(.9,1)};
+class Spring{constructor(v,p=P.soft){this.v=this.t=v;this.vel=0;this.p=p}
+ jump(v){this.v=this.t=v;this.vel=0}
+ step(dt){if(RM){this.v=this.t;return}const a=-this.p.k*(this.v-this.t)-this.p.c*this.vel;this.vel+=a*dt;this.v+=this.vel*dt}}
+const bez=(x1,y1,x2,y2)=>t=>{let s=t;for(let i=0;i<8;i++){const x=3*(1-s)**2*s*x1+3*(1-s)*s*s*x2+s**3-t,d=3*(1-s)**2*x1+6*(1-s)*s*(x2-x1)+3*s*s*(1-x2);if(Math.abs(d)<1e-6)break;s=Math.min(1,Math.max(0,s-x/d))}return 3*(1-s)**2*s*y1+3*(1-s)*s*s*y2+s**3};
+const EZ=bez(.2,0,0,1);
+
+/* ── run model ───────────────────────────── */
+const RUNS=(DATA&&DATA.runs)||[];
+const TI={task:'flag',decision:'branch','tool call':'term','tool result':'inbox',state:'db',output:'send',assertion:'cc',code:'code',
+ event:'act',proposal:'send',policy:'shield',blocked:'shx',tool:'term'};
+const ti=tag=>TI[tag]||'act';
+let RUN=null,NR={},N=[],B={},E=[],G={cx:475,cy:295,w:1000},STEPS=[],lis=[],sgs=[];
+let DEV=null,CODE_N=null,OUT_N=null,TRACE=[],ASSERTS=[],FAILED=[],DOWN=[],UP=[],PARENT=null,DONE=new Set();
+let paused=false,speed=1,rid=0,t0=0,stage=0,verified=false;
+const nd=id=>(NR.nodes&&NR.nodes[id])||{};
+const fmtObj=o=>o&&typeof o==='object'?Object.entries(o).map(([k,v])=>`${k} = ${typeof v==='object'?JSON.stringify(v):v}`).join(', '):(o??'');
+const dev=()=>RUN.deviation||{};
+const expStr=()=>fmtObj(dev().expected)||dev().expected_behavior||RUN.expected_outcome;
+const actStr=()=>fmtObj(dev().actual)||dev().observed_behavior||RUN.actual_summary;
+const isFixture=()=>!!RUN.is_fixture;
+const passed=()=>!!(RUN.verification&&RUN.verification.passed);
+const failedRun=()=>!['succeeded','success','passed'].includes(String(RUN.status).toLowerCase());
+
+function forward(id){const out=[],seen=new Set([id]),q=[id];
+ while(q.length){const c=q.shift();for(const e of E)if(e.s===c&&!seen.has(e.t)&&B[e.t].tag!=='code'){seen.add(e.t);out.push([c,e.t]);q.push(e.t)}}return out}
+function ancestors(id){const s=new Set(),q=[id];
+ while(q.length){const c=q.shift();for(const e of E)if(e.t===c&&!s.has(e.s)&&!['code','assertion'].includes(B[e.s].tag)){s.add(e.s);q.push(e.s)}}
+ return [...s].sort((a,b)=>B[a].i-B[b].i)}
+
+/* ── graph build ─────────────────────────── */
+const eg=$('#eg'),ng=$('#ng');
+function buildGraph(){
+ eg.innerHTML='';ng.innerHTML='';
+ E.forEach(e=>{const a=B[e.s],b=B[e.t],dx=b.x-a.x,dy=b.y-a.y;let p,q,c1,c2;
+  if(Math.abs(dx)>Math.abs(dy)*.55){const s=dx>0?1:-1;p=[a.x+s*62,a.y];q=[b.x-s*62,b.y];c1=[p[0]+s*45,p[1]];c2=[q[0]-s*45,q[1]]}
+  else{const s=dy>0?1:-1;p=[a.x,a.y+s*27];q=[b.x,b.y-s*27];c1=[p[0],p[1]+s*40];c2=[q[0],q[1]-s*40]}
+  const d=`M${p[0]} ${p[1]}C${c1[0]} ${c1[1]} ${c2[0]} ${c2[1]} ${q[0]} ${q[1]}`;
+  e.g=mk('g',{class:'e'+(e.inf?' inf':'')},eg);
+  e.r=mk('path',e.inf?{d,class:'r'}:{d,class:'r',pathLength:1},e.g);
+  e.m=mk('path',{d,fill:'none',stroke:'none'},e.g);
+  e.L=e.m.getTotalLength();const mid=e.m.getPointAtLength(e.L/2);
+  mk('circle',{cx:q[0],cy:q[1],r:2.4,class:'tip'},e.g);
+  mk('text',{x:mid.x,y:mid.y-7,class:'el'},e.g).textContent=e.k});
+ N.forEach(n=>{const g=mk('g',{class:'n'},ng);n.g=g;
+  n.rc=mk('rect',{class:'cd',width:124,height:54,rx:10},g);
+  mk('use',{href:'#i-'+ti(n.tag),x:11,y:8,width:11,height:11},g);
+  mk('text',{class:'tg',x:26,y:17},g).textContent=n.tag;
+  mk('text',{class:'tg',x:112,y:17,'text-anchor':'end'},g).textContent='#'+pad(n.i+1);
+  mk('text',{class:'lb',x:12,y:34},g).textContent=n.l.length>17?n.l.slice(0,16)+'…':n.l;
+  n.se=mk('text',{class:'sv',x:12,y:46},g);n.se.textContent=clip(n.sub);
+  n.S={x:new Spring(G.cx),y:new Spring(G.cy),s:new Spring(.6),r:new Spring(0),d:new Spring(0)};
+  g.addEventListener('click',()=>openIns(n.id))})}
+const clip=s=>{s=String(s??'');return s.length>22?s.slice(0,21)+'…':s};
+const setP=(n,p)=>['x','y','s','r'].forEach(k=>n.S[k].p=p);
+const jump=(n,x,y,s,r)=>{n.S.x.jump(x);n.S.y.jump(y);n.S.s.jump(s);n.S.r.jump(r)};
+function shape(n,t){const w=20+104*t,h=20+34*t;n.rc.setAttribute('x',(124-w)/2);n.rc.setAttribute('y',(54-h)/2);n.rc.setAttribute('width',w);n.rc.setAttribute('height',h)}
+function morph(n,ms){const id=n.tw=(n.tw||0)+1,t0=performance.now();(function f(now){if(n.tw!==id)return;const p=Math.min(1,(now-t0)/ms);shape(n,EZ(p));if(p<1)requestAnimationFrame(f)})(t0)}
+
+const cam={x:new Spring(475,P.cam),y:new Spring(295,P.cam),w:new Spring(1000,P.cam)};
+const fxS={x:new Spring(475,P.fx),y:new Spring(295,P.fx)};
+/* zoom widths were tuned for a 1000-unit graph; scale them for wider live graphs so edge boxes stay visible */
+const look=(x,y,w)=>{const k=Math.max(1,G.w/1000);cam.x.t=x;cam.y.t=y;cam.w.t=Math.min(G.w,w*k*1.15)},
+ full=()=>{cam.x.t=G.cx;cam.y.t=G.cy;cam.w.t=G.w};
+let last=performance.now();
+(function frame(now){let dt=Math.min(.05,(now-last)/1000);last=now;const sub=4,h=dt/sub,ts=now/1000;
+ for(let k=0;k<sub;k++){N.forEach(n=>{for(const s in n.S)n.S[s].step(h)});for(const s in cam)cam[s].step(h);fxS.x.step(h);fxS.y.step(h)}
+ N.forEach(n=>{const S=n.S,a=S.d.v,ox=Math.sin(ts*.7+n.i*1.7)*5*a,oy=Math.cos(ts*.55+n.i*2.3)*4*a;
+  n.g.setAttribute('transform',`translate(${S.x.v+ox} ${S.y.v+oy}) rotate(${S.r.v}) scale(${Math.max(.01,S.s.v)}) translate(-62 -27)`)});
+ const w=cam.w.v;sv.setAttribute('viewBox',`${cam.x.v-w/2} ${cam.y.v-w*.28} ${w} ${w*.56}`);
+ $('#fx').setAttribute('transform',`translate(${fxS.x.v} ${fxS.y.v})`);
+ requestAnimationFrame(frame)})(last);
+
+function focus(id,label,ok){const n=B[id],f=$('#fx');if(!n)return;fxS.x.t=n.x;fxS.y.t=n.y;if(!f.classList.contains('on')){fxS.x.jump(n.x);fxS.y.jump(n.y)}
+ f.classList.add('on');f.classList.toggle('ok',!!ok);$('#pt').textContent=label;$('#pr').setAttribute('width',$('#pt').getComputedTextLength()+20)}
+const unfocus=()=>$('#fx').classList.remove('on');
+const show=(id,p=P.land)=>{const n=B[id];n.tw=(n.tw||0)+1;shape(n,1);setP(n,p);n.S.d.t=0;
+ n.g.classList.remove('orb','morph');n.S.x.t=n.x;n.S.y.t=n.y;n.S.s.t=1;n.S.r.t=0;n.g.classList.add('vis');n.placed=1;setTimeout(sync,360)};
+function sync(){E.forEach(e=>{if(B[e.s].placed&&B[e.t].placed)e.g.classList.add('vis')})}
+const edge=(a,b)=>E.find(e=>(e.s===a&&e.t===b)||(e.s===b&&e.t===a));
+const light=set=>E.forEach(e=>e.g.classList.toggle('on',set.includes(e.s)&&set.includes(e.t)));
+function rip(id,c){const n=B[id];mk('circle',{cx:n.x,cy:n.y,r:14,class:'rip '+(c||'')},sv)}
+function pulse(a,b,col,ms=800){const e=edge(a,b);if(!e)return Promise.resolve();const rev=e.s!==a;
+ const c=mk('circle',{r:3.6,class:'pz',style:`fill:${col};filter:drop-shadow(0 0 5px ${col})`},eg),t0=performance.now();
+ return new Promise(res=>{(function f(now){const p=Math.min(1,(now-t0)/ms),q=EZ(p),pt=e.m.getPointAtLength((rev?1-q:q)*e.L);
+  c.setAttribute('cx',pt.x);c.setAttribute('cy',pt.y);c.style.opacity=p<.12?p/.12:p>.85?(1-p)/.15:1;
+  if(p<1)requestAnimationFrame(f);else{c.remove();res()}})(t0)})}
+
+/* ── bang ─────────────────────────────────── */
+const OC=['var(--acc)','var(--blue)','var(--acc)','var(--sage)','var(--blue)','var(--acc)','var(--sage)','var(--acc)','var(--blue)'];
+async function boom(){
+ const S=TRACE,cx=G.cx,cy=G.cy,k=G.w/1000;[$('#bb'),$('#hz')].forEach(x=>{x.classList.remove('go');void x.offsetWidth;x.classList.add('go')});
+ S.forEach((n,i)=>{n.g.classList.add('orb');n.g.style.setProperty('--oc',OC[i%OC.length]);shape(n,0);jump(n,cx,cy,.5,0)});
+ await sleep(420);
+ [0,180,400].forEach((d,j)=>setTimeout(()=>mk('circle',{cx,cy,r:10,class:'rip boom'+(j===1?' b':'')},sv),d));
+ const cols=['var(--acc)','color-mix(in srgb,var(--acc) 30%,var(--ink))','#7f9cf0','var(--sage)'];
+ for(let i=0;i<46;i++){const a=i*2.399+.5,r=(140+(i*53%330))*k,c=mk('circle',{cx,cy,r:1.6+(i%3)*.8,class:'sk',style:'fill:'+cols[i%4]},sv);
+  c.style.setProperty('--dx',Math.cos(a)*r*1.3+'px');c.style.setProperty('--dy',Math.sin(a)*r*.75+'px');c.style.animationDelay=(i%6)*40+'ms';setTimeout(()=>c.remove(),2300)}
+ const hx=G.w/2-80,hy=G.w*.28-50;
+ S.forEach((n,i)=>{const a=i*2.399+1,r=(230+(i*67%170))*k,tx=Math.max(cx-hx,Math.min(cx+hx,cx+Math.cos(a)*r*1.4)),ty=Math.max(cy-hy,Math.min(cy+hy,cy+Math.sin(a)*r*.8));
+  n.tilt=(i%2?1:-1)*(10+(i%9)*4);setP(n,P.launch);n.g.classList.add('vis');
+  n.S.x.t=tx;n.S.y.t=ty;n.S.s.t=1;n.S.x.vel=(tx-cx)*2.6;n.S.y.vel=(ty-cy)*2.6;n.S.d.t=1});
+ await sleep(1600);
+ for(const n of S){n.g.classList.add('morph');n.g.classList.remove('orb');morph(n,760);setP(n,P.tilt);n.S.s.t=.58;n.S.r.t=n.tilt;await sleep(Math.max(30,85*9/Math.max(9,S.length)))}
+ await sleep(800)}
+
+/* ── narrative helpers ───────────────────── */
+const sleep=ms=>new Promise((res,rej)=>{const id=rid;let t=0;const iv=setInterval(()=>{if(id!==rid){clearInterval(iv);rej('x');return}if(!paused){t+=20*speed;if(t>=ms){clearInterval(iv);res()}}},20)});
+const readMs=t=>350+t.replace(/<[^>]+>/g,'').split(/\s+/).length*250;
+function follow(){const a=$('#act'),cur=document.querySelector('.st.run');if(!cur)return;const r=cur.getBoundingClientRect(),ar=a.getBoundingClientRect();
+ if(r.bottom>ar.bottom-90)a.scrollTo({top:a.scrollTop+(r.bottom-ar.bottom)+110,behavior:'smooth'})}
+const add=(b,h,c='')=>{const d=document.createElement('div');d.className='ln rise '+c;d.innerHTML=h;b.appendChild(d);follow();return d};
+const digBtn=(id,label,tab)=>`<button class="dig" data-dig="${id}" data-tab="${tab||'overview'}">${ico('dive')}${label}<span>${ico('cr','ic','width:14px;height:14px')}</span></button>`;
+const ctx=li=>({li,body:li.querySelector('.body'),
+ now(t){const e=li.querySelector('.now');if(!t){e.classList.remove('on');return}e.innerHTML='<i></i>'+t;e.classList.add('on')},
+ async say(t,tech){const s=li.querySelector('.say'),k=li.querySelector('.tech');[s,k].forEach(x=>x.classList.remove('in'));await sleep(200);s.innerHTML=t;k.innerHTML=tech||'';s.classList.add('in');k.classList.add('in');follow();return readMs(t)},
+ find(label,val,node,cls=''){li.dataset.node=node||'';const f=li.querySelector('.find>div');
+  f.innerHTML=`<small>${label}</small>`+(node?`<a data-n="${node}" class="${cls}">${val}</a>`:`<b style="font-weight:500;color:var(--ink)">${val}</b>`);
+  const a=f.querySelector('a');if(a)a.onclick=e=>{e.stopPropagation();openIns(node)}}});
+const ttl=(k,d)=>(NR.titles&&NR.titles[k])||d, say=(k,d)=>(NR.say&&NR.say[k])||d, tech=(k,d)=>(NR.tech&&NR.tech[k])||d, fnd=(k,d)=>(NR.find&&NR.find[k])||d;
+
+/* ── story steps, built from whatever the run bundle contains ── */
+function makeSteps(){
+ const S=[],d=dev(),pr=RUN.prediction,mt=RUN.incident_matches||[],sd=RUN.safety_decisions||[],v=RUN.verification,code=NR.code;
+ const devStep=DEV?DEV.i+1:0;
+
+ S.push({k:'read',t:'Read what the agent did',ic:'file',node:TRACE[0].id,
+  say:'First, Bifura replays everything the AI agent did, one step at a time.',
+  tech:`ingest ${esc(RUN.raw_trace_ref||'trace')} → normalize → ${RUN.events_count} TraceEvents · schema ok`,
+  run:async c=>{c.now('Opening the recorded trace');await boom();c.now('Putting the events in order');
+   const L=document.createElement('div');L.className='evl';c.body.appendChild(L);
+   for(const n of TRACE){show(n.id);const r=document.createElement('div');r.innerHTML=`<u class="rise">#${pad(n.i+1)}</u><span class="rise">${esc(n.tag)}</span><b class="rise">${esc(n.l)}</b>`;L.appendChild(r);follow();await sleep(300+(n.i%3)*70)}
+   const et=RUN.event_types||[],tools=TRACE.filter(n=>['tool call','tool'].includes(n.tag)).length,fails=et.filter(t=>t==='assertion_failed').length,blk=et.filter(t=>t==='tool_blocked').length;
+   c.now('');await sleep(500);c.find('Trace',[plural(TRACE.length,'event'),tools&&plural(tools,'tool call'),fails&&plural(fails,'failed check'),blk&&`${blk} blocked`].filter(Boolean).join(' · '))}});
+
+ const rows=NR.compare_rows||(()=>{const e=d.expected||{},a=d.actual||{},ks=[...new Set([...Object.keys(e),...Object.keys(a)])];
+  const r=ks.map(k=>[k,e[k]??'—',a[k]??'—']);if(FAILED.length)r.push(['check','pass','fail']);
+  return r.length?r:[['outcome',RUN.expected_outcome,RUN.actual_summary]]})();
+ S.push({k:'compare',t:'Compare the answer with what was expected',ic:'scale',node:OUT_N.id,
+  say:say('compare',`The agent was asked to: “${esc(RUN.task_text)}”. Expected: <span class="g">${esc(RUN.expected_outcome)}</span>. What happened: <span class="${failedRun()?'x':'g'}">${esc(RUN.actual_summary)}</span>`),
+  tech:tech('compare',FAILED.length?FAILED.map(a=>`assert ${esc(a.sub)} → FAIL`).join(' · '):`run status: ${esc(RUN.status)}`),
+  run:async(c,r)=>{focus(OUT_N.id,'Comparing the outcome');look(OUT_N.x-80,OUT_N.y+35,640);await sleep(r*.4);
+   const bx=document.createElement('div');bx.className='box rise';bx.innerHTML='<table class="tb"><tr><th></th><th>expected</th><th>actual</th></tr></table>';c.body.appendChild(bx);const t=bx.querySelector('table');
+   for(const row of rows){await sleep(600);const tr=document.createElement('tr');tr.className='rise';tr.innerHTML=`<td>${esc(row[0])}</td><td>${esc(row[1])}</td><td class="${String(row[1])!==String(row[2])?'x':''}">${esc(row[2])}</td>`;t.appendChild(tr);follow()}
+   $('#got').classList.add('on');await sleep(800);
+   if(failedRun()){const bad=rows.filter(r=>String(r[1])!==String(r[2])&&r[0]!=='check').map(r=>r[0]);
+    c.find('Mismatch',fnd('compare',bad.length>1?`${bad.slice(0,-1).join(', ')} and ${bad.at(-1)} are both wrong`:bad.length?`${bad[0]} is wrong`:'the outcome does not match'),OUT_N.id,'x2')}
+   else c.find('Outcome','matches what was expected',OUT_N.id,'g2')}});
+
+ if(DEV){
+  const checks=ASSERTS.filter(a=>!DOWN.some(p=>p[1]===a.id)&&E.some(e=>(e.s===a.id&&(e.t===DEV.id||DOWN.some(p=>p[1]===e.t)))||(e.t===a.id&&DOWN.some(p=>p[1]===e.s)))).map(a=>a.id);
+  const back=[...checks,...DOWN.map(p=>p[1]).reverse()];
+  S.push({k:'dev',t:'Find where it first went wrong',ic:'target',node:DEV.id,
+   say:'Now it works backward from the wrong answer, checking each earlier step until it finds the first one that went off track.',
+   tech:'backtrack from the failed outcome along recorded dependency edges',
+   run:async(c,r)=>{await sleep(r*.35);
+    for(const id of back){const n=B[id];c.now('Checking '+n.l.toLowerCase());focus(id,'Checking '+n.l);look(n.x-40,n.y,600);
+     add(c.body,`<span class="x">✗</span> <b>${esc(n.l)}</b> · ${nd(id).back||(n.tag==='assertion'?'the check failed':esc('output: '+n.o))}`);await sleep(800)}
+    c.now('Checking '+DEV.l.toLowerCase());focus(DEV.id,'Checking '+DEV.l);look(DEV.x,DEV.y,520);await sleep(1000);
+    DEV.g.classList.add('dev');rip(DEV.id);setTimeout(()=>rip(DEV.id),380);$('#pt').textContent='First deviation';$('#pr').setAttribute('width',$('#pt').getComputedTextLength()+20);
+    add(c.body,`<span class="x">●</span> <b>${esc(DEV.l)}</b> · ${NR.dev_line||'output disagrees with what was expected'}`);
+    const io=NR.io||[['expected',esc(expStr())],['got',esc(actStr())]];
+    const bx=document.createElement('div');bx.className='box rise';bx.innerHTML=`<div class="io"><span>${io[0][0]}</span><b>${io[0][1]}</b><span>${io[1][0]}</span><b class="x">${io[1][1]}</b></div>`+digBtn(DEV.id,NR.dig_label||'See what went wrong here');c.body.appendChild(bx);
+    c.now('');const rr=await c.say(say('dev',`Found it. ${esc(d.description||d.observed_behavior||'This step produced the wrong value.')}${UP.length?'. Every step before this looks consistent.':''}`),
+     tech('dev',`first_deviation = ${esc(DEV.id)} · ${esc(d.observed_behavior||'output ≠ expected')}${UP.length?` · upstream ${UP.map(id=>'#'+pad(B[id].i+1)).join(', ')} consistent`:''}`));
+    await sleep(rr);c.find('Started at',`Step ${devStep} · ${esc(DEV.l)}`,DEV.id,'x2')}})}
+
+ if((pr&&(pr.candidates||[]).length)||(pr&&pr.abstained)||mt.length){
+  const node=DEV||OUT_N,cands=pr?[...(pr.candidates||[])].sort((a,b)=>b.score-a.score).slice(0,4):[],best=[...mt].sort((a,b)=>(b.similarity_score||0)-(a.similarity_score||0))[0];
+  S.push({k:'past',t:'Compare with past failures',ic:'hist',node:node.id,tag:'prediction',
+   say:`Bifura checks this against failures it has seen before.${best?' It looks like a familiar mistake, but':' This is'} still a guess until the fix is tested.`,
+   tech:pr?`model ${esc(pr.model_version||'—')} · dataset ${esc(pr.dataset_version||'—')} · scores are ${esc(String(pr.score_meaning||'rankings').replace(/_/g,' '))}`:'incident memory lookup',
+   run:async(c,r)=>{focus(node.id,'Checking past incidents');look(node.x+85,node.y+5,760);c.now('Ranking likely failure types');await sleep(r*.35);
+    if(pr&&pr.abstained)add(c.body,`Prediction abstained · ${esc(pr.abstention_reason||'not enough evidence')}`);
+    const mx=Math.max(...cands.map(x=>x.score),.01);
+    for(const[i,x]of cands.entries()){const dd=add(c.body,`<div class="br ${i===0?'f':''}"><div><span>${esc(x.category)}</span><span>${Number(x.score).toFixed(2)}</span></div><i><u></u></i></div>`);await sleep(80);dd.querySelector('u').style.width=x.score/mx*88+'%';await sleep(380)}
+    if(best){await sleep(500);add(c.body,`Closest past case: <b>${esc(best.incident_id)}</b> · ${best.verified?'verified':'unverified'} · ${esc(best.match_reason||best.why_relevant||'')}`);await sleep(700)}
+    if(cands.length&&pr.score_meaning!=='probability')add(c.body,'<span style="opacity:.8">Scores rank options; they are not probabilities.</span>');
+    c.now('');await sleep(900);
+    if(cands.length)c.find('Likely type',`${esc(cands[0].category)} · score ${Number(cands[0].score).toFixed(2)}`,node.id);else if(best)c.find('Closest case',esc(best.incident_id),node.id)}})}
+
+ if(DEV&&DOWN.length){
+  const n=DOWN.filter(p=>B[p[1]].tag!=='assertion').length||DOWN.length;
+  S.push({k:'impact',t:'Follow what the mistake affected',ic:'share',node:DOWN[0][1],
+   say:say('impact',`One small slip, ${plural(n,'wrong step')}. Everything after step ${devStep} inherited the bad value.`),
+   tech:`downstream consumers of ${esc(DEV.id)} via ${[...new Set(DOWN.map(([a,b])=>{const e=edge(a,b);return e.k+(e.inf?' (inferred)':'')}))].join(' → ')}`,
+   run:async(c,r)=>{const xs=DOWN.map(p=>B[p[1]].x);focus(DEV.id,'Tracing impact');look((DEV.x+Math.max(...xs))/2+30,DEV.y-15,820);await sleep(r*.4);c.now('Following the bad value');
+    const set=[DEV.id];
+    for(const[a,b]of DOWN){const e=edge(a,b);await pulse(a,b,'var(--acc)',850);B[b].g.classList.add('hit');rip(b);set.push(b);light(set);
+     add(c.body,`<span class="x">→</span> <b>${esc(B[b].l)}</b> ${nd(b).impact||esc(e.k+(e.inf?' · inferred link':''))}`);await sleep(350)}
+    c.now('');await sleep(800);c.find('Impact',`${plural(n,'later step')} inherited the bad value`,DOWN[0][1],'x2')}})}
+
+ if(CODE_N){
+  S.push({k:'code',t:ttl('code','Find the cause in the code'),ic:'code',node:CODE_N.id,tag:'hypothesis',tc:'h',
+   say:say('code',`It opens the code behind ${DEV?'step '+devStep:'the failure'}: ${esc(CODE_N.l)}. ${esc(has(CODE_N.o)?CODE_N.o:'')}`),
+   tech:tech('code',`inspect ${esc(CODE_N.l)} · ${esc(CODE_N.st)}`),
+   run:async(c,r)=>{show(CODE_N.id,P.soft);focus(CODE_N.id,'Reading '+(code?code.file:CODE_N.l));look(CODE_N.x,CODE_N.y-55,620);c.now('Reading '+(code?code.file:CODE_N.l));await sleep(600);
+    const bx=document.createElement('div');bx.className='box rise';c.body.appendChild(bx);
+    if(code){const cd=document.createElement('div');cd.className='code';bx.appendChild(cd);
+     for(const[n,s]of code.lines){const dd=document.createElement('div');dd.className='cl rise';dd.dataset.l=n;dd.innerHTML=`<u>${n}</u><span>${esc(s)}</span>`;cd.appendChild(dd);await sleep(110)}
+     await sleep(700);cd.querySelector(`[data-l="${code.hit}"]`)?.classList.add('hit');c.now('Weighing the evidence');follow();await sleep(900);
+     for(const t of code.evidence||[]){add(c.body,t);await sleep(650)}}
+    else{bx.innerHTML=`<div class="io"><span>location</span><b>${esc(CODE_N.l)}</b><span>observation</span><b>${esc(CODE_N.o)}</b><span>status</span><b class="x">${esc(CODE_N.st)}</b></div>`;await sleep(900)}
+    bx.insertAdjacentHTML('beforeend',digBtn(CODE_N.id,NR.code_dig||'Walk through this location'));
+    c.now('');await sleep(800);c.find('Suspect',fnd('code',esc(CODE_N.l+' · '+CODE_N.o)),CODE_N.id)}})}
+
+ const fix=code&&code.fix;
+ if(sd.length||fix){
+  const lbl=x=>{const m=String(x.reason||'').match(/^[\w.]+\([^)]*\)/);return m?m[0]:(x.tool_call_id||x.proposal_id||'action')};
+  const blk=sd.filter(x=>x.decision==='BLOCK').length,rev=sd.filter(x=>x.decision==='REVIEW').length,alw=sd.filter(x=>x.decision==='ALLOW').length;
+  const at=CODE_N||DEV||OUT_N;
+  S.push({k:'fix',t:ttl('fix',fix?'Propose a small fix':'Check actions against the safety policy'),ic:fix?'wrench':'shield',node:at.id,
+   say:say('fix',(fix?'It proposes a one-line fix in a safe copy. ':'')+'Every action passes a safety check first, and a risky one is stopped before it can run.'),
+   tech:tech('fix','')||`policy v${esc(RUN.policy_version||'1')} · `+sd.map(x=>`${x.decision} ${esc(lbl(x))} [${esc(x.policy_rule||(x.rule_ids||[]).join(','))}]`).join(' · '),
+   run:async(c,r)=>{focus(at.id,fix?'Preparing the fix':'Checking actions');await sleep(r*.4);if(sd.length)c.now('Checking each action with the safety policy');
+    const bx=document.createElement('div');bx.className='box rise';if(sd.length){c.body.appendChild(bx);follow();await sleep(500)}
+    for(const x of sd){const k=x.decision==='BLOCK'?'B':x.decision==='ALLOW'?'A':'R';
+     const em=k==='B'?'Blocked · never ran':k==='A'?(x.execution_status==='executed'?'Allowed · safe copy':'Allowed'):'Needs review';
+     bx.insertAdjacentHTML('beforeend',`<div class="pol ${k} rise" title="${esc(x.reason)}">${ico(k==='B'?'shx':'shield')}<span>${esc(lbl(x))}</span><em>${em}</em></div>`);follow();await sleep(k==='B'?1100:800)}
+    if(fix){c.now(NR.fix_now||'Writing the patch');const df=document.createElement('div');df.className='box rise code';c.body.appendChild(df);
+     await sleep(300);df.insertAdjacentHTML('beforeend',`<div class="cl del rise"><u>−</u><span>${esc(code.bug)}</span></div>`);await sleep(500);
+     df.insertAdjacentHTML('beforeend',`<div class="cl add rise"><u>+</u><span>${esc(code.fix)}</span></div>`);follow()}
+    c.now('');await sleep(1000);
+    c.find('Fix',fnd('fix','')||[fix&&'1 line changed in a safe copy',blk&&`${plural(blk,'risky action')} blocked`,rev&&`${rev} sent for review`,!fix&&alw&&`${alw} allowed`].filter(Boolean).join(' · ')||'no actions to check',at.id)}})}
+
+ if(v){
+  const ok=passed(),sim=isFixture()?' (simulated)':'';
+  S.push({k:'replay',t:ttl('replay','Replay and check the fix'),ic:'replay',node:OUT_N.id,tag:ok?(isFixture()?'verified · sample':'verified'):'not verified',tc:ok?'v':'h',
+   say:'Finally it re-runs the exact same scenario with the fix in place.',
+   tech:esc(v.command||'replay'),
+   run:async(c,r)=>{const st=PARENT||DEV||OUT_N;focus(st.id,'Replaying the run',1);look(G.cx+145*G.w/1000,G.cy-15,G.w*.88);c.now('Replaying with recorded inputs');await sleep(r*.4);
+    const T=document.createElement('div');T.className='box rise term';c.body.appendChild(T);
+    const L=async(h,ms=520)=>{const dd=document.createElement('div');dd.className='ln rise';dd.innerHTML=h;T.appendChild(dd);follow();await sleep(ms)};
+    await L('$ '+esc(v.command||'replay '+RUN.run_id));
+    await L((NR.replay&&NR.replay.before)||`before  <span class="x">${esc(actStr())}</span>`);
+    if(fix)await L((NR.replay&&NR.replay.applied)||'patch applied in worktree',400);
+    if(ok&&DEV){const chain=[...(PARENT?[[PARENT.id,DEV.id]]:[]),...DOWN];
+     if(!PARENT){DEV.g.classList.remove('dev');DEV.g.classList.add('fixed');rip(DEV.id,'ok')}
+     for(const[a,b]of chain){await pulse(a,b,'var(--sage)',650);const n=B[b],q=nd(b);if(q.fixed_sub){n.sub=q.fixed_sub;n.se.textContent=clip(q.fixed_sub)}if(q.fixed_o)n.o=q.fixed_o;
+      n.g.classList.remove('hit','dev');n.g.classList.add('fixed');rip(b,'ok')}
+     E.forEach(e=>{e.g.classList.remove('on');if(e.g.classList.contains('vis'))e.g.classList.add('ok')})}
+    if(ok)verified=true;
+    await L((NR.replay&&NR.replay.after)||(ok?`after   <span class="g">${esc(expStr())}</span>`:`after   <span class="x">still failing</span>`));
+    await L(`replay ${esc(v.replay_status)} · targeted ${esc(v.targeted_test_status)} · regression ${esc(v.regression_test_status)}`,400);
+    if(v.total)await L(`${(NR.replay&&NR.replay.tests_label)||'pytest'}  <span class="${v.failures?'x':'g'}">${v.total-v.failures} passed</span> · ${v.failures} failed${sim}`,700);
+    c.now('');unfocus();full();
+    const rr=await c.say(say('verdict',ok?esc(v.summary||'The fix passes replay and the original failure no longer happens.'):`The fix did not pass: ${esc(v.summary||'replay still fails')}`),
+     `replay: ${esc(v.replay_status)} · ${v.total-v.failures}/${v.total} tests pass${sim}`);
+    await sleep(rr*.6);c.find('Verdict',ok?(isFixture()?'Fixed on the sample scenario (simulated)':'Fixed and verified by replay'):'Not fixed yet',OUT_N.id,ok?'g2':'x2')}})}
+ return S}
+
+/* ── result card ─────────────────────────── */
+function resultCard(){const pr=RUN.prediction,v=RUN.verification,d=dev(),ok=passed(),sd=RUN.safety_decisions||[];
+ const top=pr&&!pr.abstained&&(pr.candidates||[]).length?[...pr.candidates].sort((a,b)=>b.score-a.score)[0]:null;
+ const rows=NR.result_rows||[
+  top&&['','prediction',`“${esc(top.category)}” was ranked first.`],
+  DEV&&['h','deviation',`Step ${DEV.i+1} · ${esc(DEV.l)}: ${esc(d.description||d.observed_behavior||'')}`],
+  v&&[ok?'v':'h',ok?'verified':'not verified',esc(v.summary||'')],
+  sd.some(x=>x.decision==='BLOCK')&&['','safety',`${plural(sd.filter(x=>x.decision==='BLOCK').length,'risky action')} blocked before execution.`]].filter(Boolean);
+ const title=ok?(isFixture()?'Fixed, on the sample scenario':'Fixed and verified'):DEV?'Root cause located':RUN.status==='blocked'?'Risky action blocked':'Investigation complete';
+ const btns=[NR.code&&NR.code.fix&&`<button class="btn" data-cp="patch">${ico('copy')}Patch</button>`,v&&v.command&&`<button class="btn" data-cp="repro">${ico('copy')}Repro</button>`,
+  `<button class="btn" data-cp="summary">${ico('copy')}Summary</button>`,`<button class="btn" data-dig="${(DEV||OUT_N).id}">${ico('dive')}Deep dive</button>`].filter(Boolean).join('');
+ return `<div class="res rise"${ok?'':' style="border-color:color-mix(in srgb,var(--acc) 45%,transparent)"'}><h4>${ico(ok?'cc':'alert','ic',ok?'':'color:var(--acc)')}${title}</h4>
+  <p>${isFixture()?'Simulated run · nothing here was executed against real code.':`Run ${esc(RUN.run_id)} · ${plural(RUN.events_count,'event')}`}</p>
+  ${rows.map(([c,t,s])=>`<div class="rr"><span class="tag ${c}">${t}</span><span>${s}</span></div>`).join('')}
+  <div class="cpy">${btns}</div></div>`}
+function copyText(k){const v=RUN.verification||{},d=dev(),code=NR.code;
+ if(k==='patch')return `--- a/${code.file}\n+++ b/${code.file}\n@@ -${code.hit} +${code.hit} @@\n-${code.bug}\n+${code.fix}`;
+ if(k==='repro')return v.command;
+ return NR.summary||[`${RUN.run_id}:`,DEV?`first deviation at step ${DEV.i+1} (${DEV.l}).`:`status ${RUN.status}.`,d.description&&d.description+'.',
+  DOWN.length&&`Impact: ${plural(DOWN.length,'later step')}.`,v.summary].filter(Boolean).join(' ')}
+
+/* ── deep dive ───────────────────────────── */
+let insId=null,insTab='overview',sig='';
+function status(id){const n=B[id],c=n.g.classList;
+ if(c.contains('fixed'))return['fixed','Fixed'];
+ if(n.tag==='code')return verified?['fixed','Confirmed cause']:['cause','Suspected cause'];
+ if(FAILED.includes(n))return verified?['ok','Passing']:['dev','Check failed'];
+ if(c.contains('dev'))return['dev','First deviation'];
+ if(c.contains('hit'))return['hit','Affected downstream'];
+ if(n===OUT_N&&DONE.has('compare')&&failedRun())return['dev','Wrong answer'];
+ if(UP.includes(id)&&DONE.has('dev'))return['ok','Behaving as expected'];
+ if(!n.placed)return['','Not loaded yet'];return['','Not examined yet']}
+function openIns(id,tab){if(!B[id]||!B[id].placed){toast('This step appears later in the investigation');return}
+ const prev=insId;insId=id;if(tab)insTab=tab;if(!app.classList.contains('insp')&&innerWidth<1720&&!app.classList.contains('mini')){app.classList.add('mini');app.dataset.auto=1}app.classList.add('insp');$('#tgi').classList.add('on');
+ N.forEach(n=>n.g.classList.toggle('sel',n.id===id));E.forEach(e=>e.g.classList.toggle('sel',e.s===id||e.t===id));
+ if(stage>=STEPS.length||!document.querySelector('.st.run')){focus(id,B[id].l,B[id].g.classList.contains('fixed'));look(B[id].x,B[id].y,640)}
+ renderIns(prev!==id?'fade':'')}
+function closeIns(){app.classList.remove('insp');if(app.dataset.auto){app.classList.remove('mini');delete app.dataset.auto}$('#tgi').classList.remove('on');insId=null;N.forEach(n=>n.g.classList.remove('sel'));E.forEach(e=>e.g.classList.remove('sel'))}
+function moveInk(){const b=$(`#tabs button[data-t="${insTab}"]`);if(!b)return;$('#tink').style.left=b.offsetLeft+'px';$('#tink').style.width=b.offsetWidth+'px'}
+function renderIns(anim,dir){if(!insId)return;const n=B[insId],[sk,sl]=status(insId);sig=insId+sk+insTab+stage;
+ $('#ititle').textContent=n.l;
+ $('#imeta').innerHTML=`<span class="stt ${sk}">${sl}</span><span>${ico(ti(n.tag),'ic','width:12px;height:12px;vertical-align:-2px')} ${esc(n.tag)} · event #${pad(n.i+1)}</span>`;
+ document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.t===insTab));moveInk();
+ const html={overview:ovr,flow:flw,evidence:evd,raw:raw}[insTab](n);
+ const ib=$('#ibody');ib.innerHTML=`<div class="pane ${dir==='l'?'l':''}">${html}</div>`;if(anim)ib.scrollTop=0;
+ ib.querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>openIns(b.dataset.go))}
+const nodeBtn=(id,why,kind,inf,cls='')=>{const m=B[id];return `<button class="fl ${cls}" data-go="${id}"><span class="nic">${ico(ti(m.tag))}</span><span><b>${esc(m.l)}</b><p>${why}</p>${kind?`<span class="k"><i class="${inf?'inf':''}">${esc(kind)}</i>${inf?'inferred':'recorded'}</span>`:''}</span></button>`};
+const fixedView=n=>n.g.classList.contains('fixed')||(verified&&(n.tag==='code'||FAILED.includes(n)));
+function what(n){const q=nd(n.id);if(q.what)return q.what;
+ let s=`${esc(n.tag[0].toUpperCase()+n.tag.slice(1))} event “${esc(n.l)}”.`;
+ if(has(n.in))s+=` Input: ${esc(n.in)}.`;if(has(n.o))s+=` Output: ${esc(n.o)}.`;
+ if(n===DEV&&dev().description)s+=` ${esc(dev().description)}.`;return s}
+function exOf(n){const q=nd(n.id);if(q.ex)return q.ex;if(n===DEV)return[esc(expStr()),esc(actStr())];return null}
+function ovr(n){const q=nd(n.id),fx=fixedView(n),ex=exOf(n);
+ let h=`<div class="sec"><h4>${ico('bulb')}What happened</h4><p class="lead">${fx&&q.fixed?q.fixed:what(n)}</p></div>`;
+ if(ex)h+=`<div class="sec"><h4>${ico('scale')}Expected vs actual</h4><div class="ea"><div><small>Expected</small><b class="g">${ex[0]}</b></div><div><small>${fx?'Now':'Actual'}</small><b class="${ex[0]===ex[1]||fx?'':'x'}">${fx?ex[0]:ex[1]}</b></div></div></div>`;
+ const J=NR.journey;
+ if(J&&(n===DEV||n===CODE_N)){
+  h+=`<div class="sec"><h4>${ico('target')}${J.title}</h4><div class="jr">${J.steps.map(([s,b,c])=>`<div class="js ${c||''}"><small>${s}</small><b${c==='bad'?' class="x"':''}>${b}</b></div>`).join('')}</div></div>`;
+  if(verified&&J.fixed)h+=`<div class="sec"><h4>${ico('wrench')}After the fix</h4><div class="jr">${J.fixed.map(([s,b,c])=>`<div class="js ${c||''}"><small>${s}</small><b${c==='good'?' class="g"':''}>${b}</b></div>`).join('')}</div></div>`}
+ if(n===DEV&&UP.length){h+=`<div class="sec"><h4>${ico('target')}Why this is the first deviation</h4>`+
+  UP.map(id=>`<button class="chk" data-go="${id}">${ico('cc','ic ok')}${esc(B[id].l)}<span>${(nd(id).ex&&nd(id).ex[1])||esc(clip(B[id].sub))}</span></button>`).join('')+
+  `<button class="chk" data-go="${DEV.id}">${ico('cx','ic bad')}${esc(DEV.l)}<span class="x">${NR.dev_chk||esc(clip(actStr()))}</span></button>
+  <p class="lead" style="font-size:13px;color:var(--mut);margin-top:8px">Every earlier step matches expectations. Step ${DEV.i+1} is the first whose output disagrees with what was expected.</p></div>`}
+ if(DEV&&DONE.has('dev')&&DOWN.some(p=>p[1]===n.id)&&n.tag!=='assertion')h+=`<div class="sec"><h4>${ico('alert')}Is this step broken?</h4><p class="lead" style="font-size:13.5px">No. It did its job correctly with the value it received. The real cause is upstream, at <a style="cursor:pointer;text-decoration:underline;text-underline-offset:3px" data-go="${DEV.id}">${esc(DEV.l)}</a>.</p></div>`;
+ return h}
+function flw(n){const up=E.filter(e=>e.t===n.id),dn=E.filter(e=>e.s===n.id);const hot=id=>B[id].g.classList.contains('hit')||B[id].g.classList.contains('dev')?'hot':B[id].g.classList.contains('fixed')?'cool':'';
+ let h=`<div class="sec"><h4>${ico('in')}Feeds into this step</h4>`+(up.length?up.filter(e=>B[e.s].placed).map(e=>nodeBtn(e.s,esc(e.ev),e.k,e.inf,hot(e.s))).join(''):'<p class="lead" style="color:var(--mut);font-size:13px">Nothing. This is where the run starts.</p>')+'</div>';
+ h+=`<div class="sec"><h4>${ico('out')}Uses this step’s output</h4>`+(dn.length?dn.filter(e=>B[e.t].placed).map(e=>nodeBtn(e.t,esc(e.ev),e.k,e.inf,hot(e.t))).join(''):'<p class="lead" style="color:var(--mut);font-size:13px">Nothing downstream. This is an end point.</p>')+'</div>';
+ if(n===DEV&&DONE.has('impact'))h+=`<div class="sec"><h4>${ico('share')}Impact chain</h4><p class="lead" style="font-size:13.5px">${[DEV,...DOWN.map(p=>B[p[1]])].map(m=>esc(m.l)).join(' → ')}${FAILED.length?' → failed check':''}. Solid links are recorded in the trace; dashed ones are inferred.</p></div>`;
+ return h}
+function evd(n){const ev=[],d=dev(),q=nd(n.id),code=NR.code;
+ if(n.tag!=='code')ev.push(['file',`Trace event #${pad(n.i+1)}`,`Input: ${esc(n.in)}<br>Output: ${esc(n.o)}`]);
+ if(n===DEV){if(d.expected_behavior)ev.push(['scale','Expectation',esc(d.expected_behavior)]);
+  if(DONE.has('past'))(RUN.incident_matches||[]).forEach(m=>ev.push(['hist',`Similar past case · ${esc(m.incident_id)} (${m.verified?'verified':'unverified'})`,`Matched on: ${esc((m.matched_features||[]).join(', ').replace(/_/g,' '))}. ${esc(m.why_relevant||'')} Similarity is a lead, not proof.`]));
+  if(DONE.has('code')&&CODE_N)ev.push(['code','Source code',`<a data-go="${CODE_N.id}">${esc(CODE_N.l)}</a> is the suspected location.`])}
+ if(n===CODE_N){
+  if(code){ev.push(['code',`${esc(code.file)} · lines ${code.lines[0][0]}–${code.lines.at(-1)[0]}`,`<div class="box code" style="margin-top:8px">${code.lines.map(([k,s])=>`<div class="cl ${k===code.hit?(verified?'del':'hit'):''}"><u>${k}</u><span>${esc(s)}</span></div>`).join('')}${DONE.has('fix')&&code.fix?`<div class="cl add"><u>+</u><span>${esc(code.fix)}</span></div>`:''}</div>`]);
+   if(code.test)ev.push(['flask',`Test · ${esc(code.test.name)}`,verified?`<span class="g">Passes</span> after the fix${isFixture()?' (simulated)':''}.`:esc(code.test.before)])}
+  else ev.push(['code','Location',`${esc(n.l)}<br>${esc(n.o)}<br>${esc(n.st)}`])}
+ if(n.tag==='assertion')ev.push(['cc','Rule',esc(n.in)],['act','Result',verified?`<span class="g">pass</span>`:FAILED.includes(n)?`<span class="x">${esc(n.o)}</span>`:esc(n.o)]);
+ if(DOWN.some(p=>p[1]===n.id)&&n.tag!=='assertion'){const e=E.find(e=>e.t===n.id);if(e)ev.push(['share','Why it’s marked affected',esc(e.ev)])}
+ (q.evidence||[]).forEach(x=>ev.push(x));
+ return ev.length?ev.map(([i,b,p])=>`<div class="ev">${ico(i)}<div style="min-width:0;flex:1"><b>${b}</b><p>${p}</p></div></div>`).join(''):`<div class="empty">${ico('file')}<div>No evidence recorded for this step.</div></div>`}
+function raw(n){const src=(RUN.raw_events||{})[n.id];
+ const o=src||Object.fromEntries(Object.entries(n).filter(([k])=>['id','tag','l','sub','in','o','st'].includes(k)).map(([k,v])=>[{l:'label',o:'output',in:'input',st:'note'}[k]||k,v]));
+ const bad=Object.values(dev().actual||{}).map(String).filter(Boolean);
+ const isBad=v=>!verified&&(/fail/i.test(v)||bad.some(b=>v.includes(b)));
+ const j=JSON.stringify(o,null,2).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"([^"]+)":/g,'<span class="k">"$1"</span>:')
+  .replace(/: "([^"]*)"/g,(m,v)=>`: <span class="${isBad(v)?'bad':'s'}">"${v}"</span>`).replace(/: (-?[\d.]+)(,?)$/gm,(m,v,c)=>isBad(v)?`: <span class="bad">${v}</span>${c}`:m);
+ return `<div class="sec"><h4>${ico('braces')}${src?'Normalized trace event':'Impact-graph node (not a trace event)'}</h4><pre class="raw">${j}</pre></div><button class="btn" id="cpraw">${ico('copy')}Copy JSON</button>`}
+document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>{const T=['overview','flow','evidence','raw'],old=T.indexOf(insTab),nw=T.indexOf(b.dataset.t);insTab=b.dataset.t;renderIns('',nw<old?'l':'')});
+$('#ibody').addEventListener('click',e=>{if(e.target.closest('#cpraw'))cp($('#ibody pre').textContent,'JSON copied')});
+$('#icl').onclick=closeIns;
+$('#tgi').onclick=()=>{if(!RUN)return;app.classList.contains('insp')?closeIns():openIns(insId||(DEV&&DEV.placed?DEV.id:N[0].id))};
+const step=d=>{const vis=N.filter(n=>n.placed).map(n=>n.id);let i=vis.indexOf(insId)+d;if(i<0||i>=vis.length)return;openIns(vis[i])};
+$('#ipv').onclick=()=>step(-1);$('#inx').onclick=()=>step(1);
+/* keys: Space run/pause/next · → next step · R restart · S auto/step · Esc close panel */
+document.addEventListener('keydown',e=>{if(e.ctrlKey||e.metaKey||e.altKey)return;const k=e.key;
+ if(k===' '){e.preventDefault();document.activeElement&&document.activeElement.blur&&document.activeElement.blur();if(!started||gateRes)next();else $('#pp').click();return}
+ if(k==='Escape'){if(insId)closeIns();return}
+ if(k==='ArrowRight'){if(insId)step(1);else next();return}
+ if(k==='ArrowLeft'){if(insId)step(-1);return}
+ if(k==='r'||k==='R'){main();return}
+ if(k==='g'||k==='G'){setStory(app.classList.contains('nostory'));return}
+ if(k==='s'||k==='S')setMode(mode==='step'?'auto':'step')});
+setInterval(()=>{if(insId){const s=insId+status(insId)[0]+insTab+stage;if(s!==sig)renderIns('')}},500);   /* keep the panel live while the run progresses */
+window.addEventListener('resize',moveInk);
+document.addEventListener('click',e=>{const d=e.target.closest('[data-dig]');if(d)openIns(d.dataset.dig,d.dataset.tab);
+ const c=e.target.closest('[data-cp]');if(c)cp(copyText(c.dataset.cp),{patch:'Patch',repro:'Repro command',summary:'Summary'}[c.dataset.cp]+' copied')});
+
+/* ── load a run ──────────────────────────── */
+const chipText=()=>({failed:'Failed run',blocked:'Blocked run',succeeded:'Succeeded',pending:'Pending'}[String(RUN.status).toLowerCase()]||String(RUN.status));
+const dotCls=p=>p.verification&&p.verification.passed&&p===RUN&&verified?'k':['failed','blocked','error'].includes(String(p.status).toLowerCase())?'f':['succeeded','success'].includes(String(p.status).toLowerCase())?'k':'';
+function renderRuns(){$('#runs').innerHTML=RUNS.map((p,i)=>`<button class="rn ${p===RUN?'on':''}" data-run="${i}"><i class="${dotCls(p)}"></i><span>${esc(p.task_summary||p.task_text)}</span><small>${esc(p.run_id)}</small></button>`).join('');
+ $('#runs').querySelectorAll('[data-run]').forEach(b=>b.onclick=()=>{const p=RUNS[+b.dataset.run];if(p!==RUN){load(p);ready()}})}
+function load(p){
+ ++rid;if(RUN)closeIns();
+ RUN=p;NR=p.narrative||{};
+ N=p.nodes.map((n,i)=>({...n,i,l:String(n.l??n.id),sub:String(n.sub??''),in:String(n.in??'—'),o:String(n.o??'—'),st:String(n.st??'—'),x:+n.x,y:+n.y}));
+ N.forEach(n=>{n.s0=n.sub;n.o0=n.o});
+ B=Object.fromEntries(N.map(n=>[n.id,n]));
+ E=(p.edges||[]).filter(e=>B[e.s]&&B[e.t]&&e.s!==e.t).map(e=>({...e,ev:e.ev||`${B[e.s].l} → ${B[e.t].l} (${e.k}). ${e.inf?'Inferred, not recorded in the trace.':'Recorded in the trace.'}`}));
+ const xs=N.map(n=>n.x),ys=N.map(n=>n.y),x0=Math.min(...xs),x1=Math.max(...xs),y0=Math.min(...ys),y1=Math.max(...ys);
+ G={cx:(x0+x1)/2,cy:(y0+y1)/2,w:Math.max(700,x1-x0+190,(y1-y0+150)/.56)};
+ CODE_N=N.find(n=>n.tag==='code')||null;TRACE=N.filter(n=>n!==CODE_N);
+ ASSERTS=N.filter(n=>n.tag==='assertion');FAILED=ASSERTS.filter(n=>n.et==='assertion_failed'||/fail/i.test(n.o));
+ const dv=p.deviation&&p.deviation.found!==false?(p.deviation.first_deviation_event_id||p.deviation.event_id):null;
+ DEV=dv&&B[dv]&&B[dv]!==CODE_N?B[dv]:null;
+ OUT_N=N.find(n=>n.tag==='output')||[...TRACE].reverse().find(n=>n.tag!=='assertion')||TRACE.at(-1);
+ DOWN=DEV?forward(DEV.id):[];UP=DEV?ancestors(DEV.id):[];
+ PARENT=DEV?(E.filter(e=>e.t===DEV.id&&UP.includes(e.s)).map(e=>B[e.s]).sort((a,b)=>b.i-a.i)[0]||null):null;
+ buildGraph();
+ $('#ttl').innerHTML=`${esc(p.run_id)} <small>${esc(p.task_summary||p.agent_name||'')}</small>${ico('cd','ic','color:var(--mut);width:14px;height:14px')}`;
+ $('#ktask').textContent=p.task_text;$('#kexp').textContent=p.expected_outcome;
+ $('#kgot').innerHTML=NR.got_html||`<span class="${failedRun()?'x':'g'}">${esc(p.actual_summary)}</span>`;
+ $('#pill').textContent=p.is_fixture?'Sample · simulated':p.investigator?`Live run · ${p.investigator.name}`:'Recorded run';
+ $('#pill').classList.toggle('live',!p.is_fixture&&!!p.investigator);
+ $('#tel').textContent=`${plural(p.events_count,'event')} · ${p.is_fixture?'fixture':'live run'} · model ${p.prediction&&p.prediction.model_version||'—'} · policy ${p.policy_status||'—'}`;
+ document.title=`Bifura — ${p.run_id}`;
+ STEPS=makeSteps();
+ const ol=$('#steps'),segs=$('#segs');ol.innerHTML='';segs.innerHTML='';
+ STEPS.forEach(s=>{const li=document.createElement('li');li.className='st';
+  li.innerHTML=`<div class="gl">${ico(s.ic,'ic si')}${ico('check','ic ck')}</div><div class="bd"><div class="hd"><span class="tt">${s.t}</span>${s.tag?`<span class="tag ${s.tc||''}">${s.tag}</span>`:''}
+   <span class="acts2"><button class="ibtn dv" title="Deep dive">${ico('dive')}</button><button class="ibtn" title="Show details">${ico('cd','ic chv')}</button></span></div>
+   <div class="find"><div></div></div><div class="bw"><div><p class="say"></p><p class="tech"></p><div class="now"></div><div class="body"></div></div></div></div>`;
+  li.querySelector('.hd').onclick=()=>{if(li.classList.contains('done'))li.classList.toggle('open')};
+  li.querySelector('.dv').onclick=e=>{e.stopPropagation();openIns(li.dataset.node||s.node)};
+  ol.appendChild(li);segs.appendChild(document.createElement('i'))});
+ lis=[...ol.children];sgs=[...segs.children];
+ renderRuns()}
+
+/* ── run control ─────────────────────────── */
+function reset(){document.querySelectorAll('.rip,.sk,.pz').forEach(r=>r.remove());['#bb','#hz'].forEach(q=>$(q).classList.remove('go'));
+ verified=false;stage=0;DONE=new Set();const c0=$('#st');c0.textContent=chipText();c0.classList.toggle('ok',!failedRun());$('#got').classList.remove('on');$('#brief').classList.remove('idle');$('#hint').classList.remove('on');
+ N.forEach(n=>{n.g.classList.remove('vis','dev','hit','fixed','orb','morph','sel');n.placed=0;n.tw=(n.tw||0)+1;shape(n,1);n.S.d.jump(0);n.sub=n.s0;n.o=n.o0;n.se.textContent=clip(n.s0);
+  if(n===CODE_N)jump(n,n.x,n.y,.6,0);else jump(n,G.cx,G.cy,.5,0)});
+ E.forEach(e=>e.g.classList.remove('vis','on','ok','sel'));unfocus();closeIns();
+ cam.x.jump(G.cx);cam.y.jump(G.cy);cam.w.jump(G.w);
+ lis.forEach(l=>{l.className='st';l.dataset.node='';l.querySelector('.body').innerHTML='';l.querySelector('.find>div').innerHTML='';l.querySelectorAll('.say,.tech').forEach(x=>{x.classList.remove('in');x.innerHTML=''});l.querySelector('.now').classList.remove('on')});
+ sgs.forEach(s=>s.className='');$('#res').innerHTML='';$('#act').scrollTop=0;t0=0;$('#clk').textContent='00:00';renderRuns()}
+/* start state + step-by-step (presenter) mode */
+let mode='auto',started=false,gateRes=null;
+const HINT0='Click any step to dig into it';
+const setHint=(t,on)=>{$('#hint').innerHTML=ico('dive')+t;$('#hint').classList.toggle('on',!!on)};
+const setPlay=play=>{const b=$('#pp');b.innerHTML=ico(play?'play':'pause');b.title=play?(started?'Resume (Space)':'Run (Space)'):'Pause (Space)'};
+function setMode(m){mode=m==='step'?'step':'auto';app.classList.toggle('stepm',mode==='step');
+ document.querySelectorAll('#md button').forEach(x=>x.classList.toggle('on',x.dataset.m===mode));
+ if(mode==='auto'&&gateRes)gateRes()}
+function gate(){const id=rid;return new Promise((res,rej)=>{$('#nx').classList.add('wait');
+ const iv=setInterval(()=>{if(id!==rid){clearInterval(iv);gateRes=null;$('#nx').classList.remove('wait');rej('x')}},50);
+ gateRes=()=>{clearInterval(iv);gateRes=null;$('#nx').classList.remove('wait');res()}})}
+function ready(){++rid;reset();started=false;paused=false;app.classList.add('ready');$('#brief').classList.add('idle');$('#stx').textContent='Ready to investigate';
+ setPlay(true);setHint('Press Run investigation to start',true)}
+function next(){if(!RUN)return;if(!started)main();else if(gateRes)gateRes()}
+async function main(){if(!RUN)return;++rid;reset();started=true;paused=false;app.classList.remove('ready');setPlay(false);setHint(HINT0,false);
+ try{for(let i=0;i<STEPS.length;i++){const li=lis[i],c=ctx(li);
+   if(i){lis[i-1].classList.remove('run');lis[i-1].classList.add('done');sgs[i-1].className='d';DONE.add(STEPS[i-1].k);stage=i;
+    if(mode==='step'){$('#stx').innerHTML=`Step ${i} of ${STEPS.length} done · press <kbd>→</kbd> for the next`;follow();await gate()}
+    await sleep(450)}
+   li.classList.add('run');sgs[i].className='on';$('#stx').textContent=`Step ${i+1} of ${STEPS.length}`;
+   const a=$('#act');a.scrollTo({top:Math.max(0,li.offsetTop-a.clientHeight*.2),behavior:'smooth'});
+   await sleep(250);const r=await c.say(STEPS[i].say,STEPS[i].tech);await STEPS[i].run(c,r)}
+  const l=lis[lis.length-1];l.classList.remove('run');l.classList.add('done');sgs[sgs.length-1].className='d';DONE.add(STEPS.at(-1).k);stage=STEPS.length;
+  $('#brief').classList.add('idle');$('#stx').textContent='Investigation complete';
+  if(verified){const c=$('#st');c.textContent=isFixture()?'Fix verified · sample':'Fix verified';c.classList.add('ok');renderRuns()}
+  $('#hint').classList.add('on');setTimeout(()=>$('#hint').classList.remove('on'),6000);
+  await sleep(500);
+  $('#res').innerHTML=resultCard();$('#act').scrollTo({top:$('#act').scrollHeight,behavior:'smooth'})}catch(e){if(e!=='x')console.error(e)}}
+
+setInterval(()=>{if(RUN&&!paused&&!$('#brief').classList.contains('idle')){t0++;$('#clk').textContent=pad(t0/60|0)+':'+pad(t0%60)}},1000);
+$('#pp').onclick=()=>{if(!RUN)return;if(!started){main();return}paused=!paused;setPlay(paused)};
+$('#sp2').onclick=e=>{speed=speed===1?1.5:speed===1.5?2:1;e.currentTarget.textContent=speed+'×'};
+$('#rs').onclick=()=>main();
+$('#go').onclick=()=>main();
+$('#nx').onclick=next;
+document.querySelectorAll('#md button').forEach(b=>b.onclick=()=>setMode(b.dataset.m));
+/* show/hide the story panel; the graph re-fits once the column has finished resizing */
+function setStory(show){app.classList.toggle('nostory',!show);$('#tgst').classList.toggle('on',show);
+ $('#tgst').title=show?'Hide the story panel so the graph fills the screen (G)':'Show the story panel again (G)';
+ $('#tgst span').textContent=show?'Hide story':'Show story';
+ $('#fit').classList.toggle('on',!show);$('#fit').title=show?'Expand the graph to full width (G)':'Shrink the graph back (G)';
+ $('#fit span').textContent=show?'Expand graph':'Exit full graph';
+ setTimeout(()=>{full();moveInk()},520)}
+$('#tgst').onclick=()=>setStory(app.classList.contains('nostory'));
+$('#fit').onclick=()=>setStory(app.classList.contains('nostory'));
+sv.addEventListener('dblclick',()=>{full();unfocus()});
+$('#tgs').onclick=()=>{delete app.dataset.auto;app.classList.toggle('mini')};
+document.querySelectorAll('.soon').forEach(b=>b.addEventListener('click',()=>toast('Not available yet. Only investigations are wired up so far.')));
+document.querySelectorAll('#vw button').forEach(b=>b.onclick=()=>{document.querySelectorAll('#vw button').forEach(x=>x.classList.toggle('on',x===b));document.body.classList.toggle('eng',b.dataset.v==='eng')});
+const toast=t=>{const e=$('#toast');e.textContent=t;e.classList.add('on');clearTimeout(toast.t);toast.t=setTimeout(()=>e.classList.remove('on'),2200)};
+const cp=(t,m)=>{(navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(()=>toast(m),()=>toast('Copy is blocked here. Select the text instead.'))};
+
+/* ── boot ────────────────────────────────── */
+if(DATA&&DATA.embedded)app.classList.add('embedded');
+$('#runct').textContent=RUNS.length||'';
+$('#incct').textContent=new Set(RUNS.flatMap(p=>(p.incident_matches||[]).map(m=>m.incident_id))).size||'';
+const usable=RUNS.filter(p=>p.nodes&&p.nodes.length);
+if(!usable.length){$('#st').textContent='No runs';$('#ttl').textContent='Bifura';$('#stx').textContent='Waiting for run bundles';$('#brief').classList.add('idle');
+ $('#steps').innerHTML=`<div class="empty">${ico('inbox')}<div>No run bundles found.<br>Add RunBundle JSON files to <b>data/fixtures/</b> or <b>data/runs/</b>.</div></div>`}
+else{load(usable.find(p=>p.run_id===(DATA&&DATA.active)||p.scenario_id===(DATA&&DATA.active))||usable[0]);
+ setMode(DATA&&DATA.mode);ready();if(DATA&&DATA.autoplay)setTimeout(main,500)}
+</script>
+</body>
+</html>

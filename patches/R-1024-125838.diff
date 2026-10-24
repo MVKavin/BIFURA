@@ -1,0 +1,11 @@
+--- a/agent.py
++++ b/agent.py
+@@ -80,7 +80,7 @@
+             state["revenue"] = value
+             src["revenue"] = t.state({"revenue": state["revenue"]}, deps=[ev])
+         elif step == "calc_growth":
+-            args = {"current": state["prev_revenue"], "previous": state["revenue"]}
++            args = {"current": state["revenue"], "previous": state["prev_revenue"]}
+             growth, ev = t.tool("calc_growth", calc_growth, args,
+                                 deps=[src.get("revenue"), src["prev_revenue"]], kind="tool call",
+                                 summarize=lambda g: f"growth {g:+}%")

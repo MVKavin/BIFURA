@@ -1,0 +1,60 @@
+{
+  "schema_version": "1.0",
+  "incident_id": "INC-R-1024-134844",
+  "run_id": "R-1024-134844",
+  "source_run_id": "R-1024-134844",
+  "task_summary": "ACME revenue growth (separator bug)",
+  "observed_pattern": "Step 4 (extract_revenue) gave revenue = 1240 instead of revenue = 12400",
+  "expected_behavior": "extract_revenue should give revenue = 12400",
+  "observed_behavior": "extract_revenue gave revenue = 1240",
+  "first_deviation_event_id": "e04",
+  "failure_category": "state_or_dataflow",
+  "label_status": "verified",
+  "root_cause_status": "verified",
+  "root_cause_summary": "agent.py:38 where `txt.replace(\",\", \".\")` converted comma-separated thousands into decimal numbers instead of stripping commas with `txt.replace(\",\", \"\")`.",
+  "root_cause_hypotheses": [
+    "extract_revenue replaces ',' with '.' instead of removing commas, causing '12,400' to parse as 12.4 * 100 = 1240 instead of 12400.",
+    "extract_revenue replaces ',' with '.' instead of removing commas, causing '12,400' to parse as 12.4 * 100 = 1240 instead of 12400.",
+    "extract_revenue replaces ',' with '.' instead of removing commas, causing '12,400' to parse as 12.4 * 100 = 1240 instead of 12400."
+  ],
+  "verified_root_cause": "agent.py:38 where `txt.replace(\",\", \".\")` converted comma-separated thousands into decimal numbers instead of stripping commas with `txt.replace(\",\", \"\")`.",
+  "evidence_refs": [
+    "e04",
+    "agent.py:38"
+  ],
+  "affected_event_ids": [
+    "e05",
+    "e06",
+    "e07",
+    "e08",
+    "e09",
+    "e10",
+    "e11",
+    "e12"
+  ],
+  "downstream_event_ids": [
+    "e05",
+    "e06",
+    "e07",
+    "e08",
+    "e09",
+    "e10",
+    "e11",
+    "e12"
+  ],
+  "fix_ref": "patches/R-1024-134844.diff",
+  "verified_correction": "Changed line 38 in agent.py from `value = int(float(txt.replace(\",\", \".\")) * 100)` to `value = int(txt.replace(\",\", \"\"))`.",
+  "test_refs": [
+    "test_agent.py"
+  ],
+  "regression_test_refs": [],
+  "replay_status": "passed",
+  "data_origin": "real_local_run",
+  "provenance": "investigated by gemini",
+  "training_eligible": false,
+  "training_eligibility": "pending_review",
+  "review_status": "pending",
+  "dataset_version": "dataset-v1",
+  "created_at": "2026-10-24T08:19:21.289086Z",
+  "reviewed_at": null
+}

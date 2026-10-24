@@ -1,0 +1,11 @@
+--- a/agent.py
++++ b/agent.py
+@@ -11,7 +11,7 @@
+ from bifura.sdk import Tracer
+ 
+ MAX_RETRIES = 2
+-PLAN = ["fetch_page", "extract_revenue", "write_report", "calc_growth"]
++PLAN = ["fetch_page", "extract_revenue", "calc_growth", "write_report"]
+ PAGES: dict[str, str] = {}
+ 
+ 

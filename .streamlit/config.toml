@@ -1,0 +1,13 @@
+[theme]
+base = "dark"
+primaryColor = "#ff6b3d"
+backgroundColor = "#0d0d0e"
+secondaryBackgroundColor = "#18191b"
+textColor = "#ecebe7"
+
+[browser]
+gatherUsageStats = false
+
+[server]
+# Skip the first-run email prompt so `streamlit run app.py` starts straight away.
+headless = true

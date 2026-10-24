@@ -1,0 +1,11 @@
+--- a/agent.py
++++ b/agent.py
+@@ -35,7 +35,7 @@
+ def extract_revenue(page):
+     row = next(line for line in page.splitlines() if line.startswith("Revenue"))
+     txt = row.split("=")[1].split("(")[0].strip()  # e.g. "12,400"
+-    value = int(float(txt.replace(",", ".")) * 100)
++    value = int(float(txt.replace(",", "")))
+     return value
+ 
+ 

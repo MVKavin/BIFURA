@@ -1,0 +1,95 @@
+{
+  "_about": "Presentation notes for the R-0412 sample. The dashboard merges this file into the UI payload when scenario_id is 'r0412'. It only adds plain-English wording, the code excerpt and the patch shown in the story; the trace, graph, prediction, safety and verification data all come from data/fixtures/r0412_revenue_growth.json. Strings here are trusted HTML.",
+  "got_html": "<span class=\"x\">−88.2%</span> · “Revenue fell 88.2%”",
+  "compare_rows": [["revenue", "12,400", "1,240"], ["growth", "+18.1%", "−88.2%"], ["check", "pass", "fail"]],
+  "io": [["page said", "12,400"], ["agent wrote", "1,240"]],
+  "dev_line": "input and output disagree",
+  "dev_chk": "1240 ≠ 12,400",
+  "dig_label": "See how 12,400 became 1,240",
+  "code_dig": "Walk through line 42",
+  "say": {
+    "compare": "The agent was asked for revenue growth. It said revenue <span class=\"x\">fell 88%</span>. The right answer is that it <span class=\"g\">grew about 18%</span>.",
+    "dev": "Found it. The page said <b>12,400</b>, but the agent wrote down <span class=\"x\">1,240</span>, ten times too small. Every step before this was right.",
+    "impact": "One small slip, three wrong steps. Everything after step 5 inherited the bad number.",
+    "code": "It opens the code behind step 5. One line reads the comma in “12,400” as a decimal point, so 12,400 becomes 12.4, then 1,240.",
+    "verdict": "The answer is correct now: revenue <span class=\"g\">grew 18.1%</span>, and the original failure no longer happens."
+  },
+  "tech": {
+    "compare": "assert growth ∈ [−50%, +80%] → FAIL · mismatched fields: revenue, growth",
+    "dev": "first_deviation = event_005 · output ≠ f(input) · upstream events 1–4 consistent",
+    "code": "inspect_source_file(extractor.py, 38–43) · ALLOW"
+  },
+  "find": {
+    "compare": "revenue and growth are both wrong",
+    "code": "extractor.py:42 reads “,” as a decimal point"
+  },
+  "replay": {
+    "before": "before  revenue=1240   growth=<span class=\"x\">−88.2%</span>",
+    "after": "after   revenue=12400  growth=<span class=\"g\">+18.1%</span>"
+  },
+  "code": {
+    "file": "extractor.py",
+    "hit": 42,
+    "lines": [
+      [38, "def extract_revenue(txt):"],
+      [39, "    row = find_row(txt, \"Revenue\")"],
+      [40, "    txt = row.cells[1]       # \"12,400\""],
+      [41, "    # cell is in ₹ lakh"],
+      [42, "    v = float(txt.replace(\",\", \".\")) * 100"],
+      [43, "    return int(v)"]
+    ],
+    "bug": "    v = float(txt.replace(\",\", \".\")) * 100",
+    "fix": "    v = int(txt.replace(\",\", \"\"))",
+    "evidence": [
+      "<span class=\"g\">+</span> the cell is “12,400”, where “,” separates thousands",
+      "<span class=\"g\">+</span> line 42 swaps “,” for “.”: 12.4 × 100 = 1240",
+      "<span class=\"g\">+</span> matches verified case INC-014",
+      "<span class=\"x\">−</span> no contradicting evidence found yet"
+    ],
+    "test": {"name": "test_thousands_separator", "before": "Fails before the fix: expected 12400, got 1240."}
+  },
+  "journey": {
+    "title": "How “12,400” became 1,240",
+    "steps": [
+      ["Page cell (correct)", "“12,400”"],
+      ["Line 42 swaps “,” for “.”", "“12.400”"],
+      ["float() reads it as a decimal", "12.4"],
+      ["× 100 for the lakh unit", "1240 · should be 12400", "bad"]
+    ],
+    "fixed": [
+      ["Page cell", "“12,400”"],
+      ["Remove thousands separators", "“12400”"],
+      ["int()", "12400 · matches the page", "good"]
+    ]
+  },
+  "nodes": {
+    "n1": {"what": "The request the agent was given. It also defines what a correct answer looks like: growth of about +18%, and a sanity check that growth stays between −50% and +80%.", "ex": ["a clear task", "a clear task"]},
+    "n2": {"what": "The agent planned three moves: fetch ACME’s investor page, pull out the revenue figure, then calculate growth. That plan is sensible, so the problem is not here.", "ex": ["fetch → extract → calc", "fetch → extract → calc"]},
+    "n3": {"what": "The agent downloaded ACME’s investor-relations page. It loaded successfully (HTTP 200), so the data source was available.", "ex": ["HTTP 200", "HTTP 200"]},
+    "n4": {"what": "The page’s table lists FY25 revenue as 12,400 (₹ lakh). This value is correct: good data reached the agent.", "ex": ["12,400", "12,400"],
+      "evidence": [["cc", "Cross-check", "The value matches the source page, so the data reaching the agent was correct."]]},
+    "n5": {"what": "The agent read the revenue cell and turned it into a number. It should have produced 12,400, but produced 1,240, ten times too small. Everything before this step was right; everything after it inherited the error.",
+      "fixed": "The agent now reads the revenue cell as 12,400, matching the page exactly.", "ex": ["revenue = 12400", "revenue = 1240"],
+      "fixed_sub": "revenue = 12400", "fixed_o": "revenue = 12400"},
+    "n6": {"what": "This step saved the extracted revenue for later steps. It worked exactly as designed. It just saved the wrong number it was handed, so it is affected, not broken.",
+      "fixed": "Now stores 12,400, the correct value.", "ex": ["revenue = 12400", "revenue = 1240"], "back": "state held revenue = 1240", "impact": "stored it",
+      "fixed_sub": "revenue = 12400", "fixed_o": "revenue = 12400"},
+    "n7": {"what": "Calculated growth from this year’s revenue and last year’s (10,500). The maths is correct, but with 1,240 as input it produced −88.2%.",
+      "fixed": "With the correct input (12,400) it now calculates +18.1%.", "ex": ["growth = +18.1%", "growth = −88.2%"], "back": "it was given revenue = 1240", "impact": "used it",
+      "fixed_sub": "growth +18.1%", "fixed_o": "growth = +18.1%"},
+    "n8": {"what": "The agent wrote the answer: “Revenue fell 88.2%.” The link to step 7 is inferred: the sentence quotes the same growth figure.",
+      "fixed": "The report now says “Revenue grew 18.1%.”", "ex": ["“Revenue grew ~18%”", "“Revenue fell 88.2%”"], "back": "the report quotes −88.2%", "impact": "repeated it · inferred link",
+      "fixed_sub": "“Revenue grew 18.1%”", "fixed_o": "“Revenue grew 18.1%.”"},
+    "n9": {"what": "An automatic check that growth falls in a believable range (−50% to +80%). −88.2% is outside it, which is how this run was flagged as failed.",
+      "fixed": "+18.1% is inside the range, so the check now passes.", "ex": ["pass", "fail"], "back": "the check failed"},
+    "n10": {"what": "The line of code that converts the revenue cell. It treats the comma in “12,400” as a decimal point, giving 12.4, then multiplies by 100 for the lakh unit, giving 1,240.",
+      "fixed": "The line now removes thousands separators before converting, so “12,400” becomes 12,400.", "ex": ["v = 12400", "v = 1240"]}
+  },
+  "result_rows": [
+    ["", "prediction", "“Extraction error” was ranked first and matched the cause."],
+    ["v", "verified", "extractor.py:42 read the thousands separator as a decimal point. Replay now matches the expected answer."],
+    ["h", "not tested", "Other formats, like ₹ vs $ or lakh vs million."],
+    ["", "learning", "Saved as INC-0412, provisional, and kept out of training until reviewed."]
+  ],
+  "summary": "R-0412: first deviation at step 5 (Extract value). Cause: extractor.py:42 treats the thousands separator in \"12,400\" as a decimal point (12.4 × 100 = 1240). Impact: 3 later steps. Fix: strip separators before int(). Verified on sample fixture v1 (simulated)."
+}

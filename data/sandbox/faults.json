@@ -1,0 +1,197 @@
+{
+ "about": "Fault-injection library for the practice agent. Each fault is a known bug (code replacement) or environment condition with a ground-truth failure category. Bifura uses the three demo scenarios for live investigations, and every fault family to generate the synthetic, labelled training dataset. Injected copies live only in data/sandbox/runtime/.",
+ "faults": [
+  {
+   "id": "sep_decimal",
+   "category": "state_or_dataflow",
+   "title": "Thousands separator read as a decimal point",
+   "code": [
+    {
+     "old": "value = int(txt.replace(\",\", \"\"))",
+     "new": "value = int(float(txt.replace(\",\", \".\")) * 100)"
+    }
+   ]
+  },
+  {
+   "id": "sep_split",
+   "category": "state_or_dataflow",
+   "title": "Number split on the thousands separator",
+   "code": [
+    {
+     "old": "value = int(txt.replace(\",\", \"\"))",
+     "new": "value = int(txt.split(\",\")[0])"
+    }
+   ]
+  },
+  {
+   "id": "unit_scale",
+   "category": "state_or_dataflow",
+   "title": "Value scaled to the wrong unit",
+   "code": [
+    {
+     "old": "value = int(txt.replace(\",\", \"\"))",
+     "new": "value = int(txt.replace(\",\", \"\")) * 1000"
+    }
+   ]
+  },
+  {
+   "id": "stale_state",
+   "category": "state_or_dataflow",
+   "title": "Stale cached revenue reused instead of the extracted value",
+   "code": [
+    {
+     "old": "state[\"revenue\"] = value",
+     "new": "state[\"revenue\"] = env.get(\"cached_revenue\", value)"
+    }
+   ]
+  },
+  {
+   "id": "swapped_args",
+   "category": "tool_input_validation",
+   "title": "calc_growth called with current and previous swapped",
+   "code": [
+    {
+     "old": "args = {\"current\": state[\"revenue\"], \"previous\": state[\"prev_revenue\"]}",
+     "new": "args = {\"current\": state[\"prev_revenue\"], \"previous\": state[\"revenue\"]}"
+    }
+   ]
+  },
+  {
+   "id": "string_arg",
+   "category": "tool_input_validation",
+   "title": "calc_growth given a string instead of a number",
+   "code": [
+    {
+     "old": "args = {\"current\": state[\"revenue\"], \"previous\": state[\"prev_revenue\"]}",
+     "new": "args = {\"current\": str(state[\"revenue\"]), \"previous\": state[\"prev_revenue\"]}"
+    }
+   ]
+  },
+  {
+   "id": "wrong_url",
+   "category": "tool_input_validation",
+   "title": "fetch_page called with a truncated URL",
+   "code": [
+    {
+     "old": "fetch_with_retry(t, env[\"url\"], deps=[plan_ev])",
+     "new": "fetch_with_retry(t, env[\"url\"].rsplit(\"/\", 1)[0], deps=[plan_ev])"
+    }
+   ]
+  },
+  {
+   "id": "report_before_calc",
+   "category": "planning_or_tool_sequence",
+   "title": "Report written before growth is calculated",
+   "code": [
+    {
+     "old": "PLAN = [\"fetch_page\", \"extract_revenue\", \"calc_growth\", \"write_report\"]",
+     "new": "PLAN = [\"fetch_page\", \"extract_revenue\", \"write_report\", \"calc_growth\"]"
+    }
+   ]
+  },
+  {
+   "id": "skip_extract",
+   "category": "planning_or_tool_sequence",
+   "title": "Plan skips the extraction step",
+   "code": [
+    {
+     "old": "PLAN = [\"fetch_page\", \"extract_revenue\", \"calc_growth\", \"write_report\"]",
+     "new": "PLAN = [\"fetch_page\", \"calc_growth\", \"write_report\"]"
+    }
+   ]
+  },
+  {
+   "id": "skip_fetch",
+   "category": "planning_or_tool_sequence",
+   "title": "Plan never fetches the page",
+   "code": [
+    {
+     "old": "PLAN = [\"fetch_page\", \"extract_revenue\", \"calc_growth\", \"write_report\"]",
+     "new": "PLAN = [\"extract_revenue\", \"calc_growth\", \"write_report\"]"
+    }
+   ]
+  },
+  {
+   "id": "timeout",
+   "category": "external_tool_or_environment",
+   "title": "Investor page times out",
+   "env": {
+    "page": "__TIMEOUT__"
+   }
+  },
+  {
+   "id": "service_down",
+   "category": "external_tool_or_environment",
+   "title": "Investor site keeps returning 503",
+   "env": {
+    "page": "__503__"
+   }
+  },
+  {
+   "id": "conn_reset",
+   "category": "external_tool_or_environment",
+   "title": "Investor site resets the connection",
+   "env": {
+    "page": "__RESET__"
+   }
+  },
+  {
+   "id": "retry_everything",
+   "category": "retry_logic",
+   "title": "Retries permanent 404 errors repeatedly",
+   "code": [
+    {
+     "old": "        except TransientError:",
+     "new": "        except Exception:"
+    },
+    {
+     "old": "MAX_RETRIES = 2",
+     "new": "MAX_RETRIES = 6"
+    }
+   ],
+   "env": {
+    "page": "__404__"
+   }
+  },
+  {
+   "id": "retry_unbounded",
+   "category": "retry_logic",
+   "title": "Retry limit multiplied far past the budget",
+   "code": [
+    {
+     "old": "            if attempt > MAX_RETRIES:",
+     "new": "            if attempt > MAX_RETRIES * 4:"
+    },
+    {
+     "old": "for attempt in range(1, MAX_RETRIES + 2):",
+     "new": "for attempt in range(1, MAX_RETRIES * 4 + 2):"
+    }
+   ],
+   "env": {
+    "page": "__503__"
+   }
+  },
+  {
+   "id": "retry_timeouts",
+   "category": "retry_logic",
+   "title": "Retries timeouts far past the retry budget",
+   "code": [
+    {
+     "old": "        except TransientError:",
+     "new": "        except (TransientError, TimeoutError):"
+    },
+    {
+     "old": "            if attempt > MAX_RETRIES:",
+     "new": "            if attempt > MAX_RETRIES * 4:"
+    },
+    {
+     "old": "for attempt in range(1, MAX_RETRIES + 2):",
+     "new": "for attempt in range(1, MAX_RETRIES * 4 + 2):"
+    }
+   ],
+   "env": {
+    "page": "__TIMEOUT__"
+   }
+  }
+ ]
+}

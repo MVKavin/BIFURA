@@ -1,0 +1,23 @@
+{
+  "about": "Live demo scenarios. Each runs the practice agent with one injected fault, then Bifura investigates it. 'fault' points into faults.json. Inputs are fixed so runs are reproducible.",
+  "scenarios": [
+    {"id": "revenue_separator", "title": "ACME revenue growth (separator bug)", "fault": "sep_decimal",
+     "env": {"company": "ACME", "task": "Report ACME's year-over-year revenue growth",
+             "expected_text": "Growth of about +18%", "url": "acme.example/ir/fy25",
+             "pages": {"acme.example/ir/fy25": "ACME investor relations\nRevenue FY25 = 12,400 (₹ lakh)\nProfit FY25 = 1,900 (₹ lakh)"},
+             "prev_revenue": 10500, "cached_revenue": 11800,
+             "expected": {"revenue": 12400, "prev_revenue": 10500, "growth": 18.1}}},
+    {"id": "growth_args", "title": "Globex revenue growth (swapped arguments)", "fault": "swapped_args",
+     "env": {"company": "Globex", "task": "Report Globex's year-over-year revenue growth",
+             "expected_text": "Growth of about +20%", "url": "globex.example/ir/fy25",
+             "pages": {"globex.example/ir/fy25": "Globex annual report\nRevenue FY25 = 9,000 (₹ lakh)"},
+             "prev_revenue": 7500, "cached_revenue": 8100,
+             "expected": {"revenue": 9000, "prev_revenue": 7500, "growth": 20.0}}},
+    {"id": "report_order", "title": "Initech revenue growth (wrong step order)", "fault": "report_before_calc",
+     "env": {"company": "Initech", "task": "Report Initech's year-over-year revenue growth",
+             "expected_text": "Growth of about +12.5%", "url": "initech.example/ir/fy25",
+             "pages": {"initech.example/ir/fy25": "Initech results\nRevenue FY25 = 4,500 (₹ lakh)"},
+             "prev_revenue": 4000, "cached_revenue": 4200,
+             "expected": {"revenue": 4500, "prev_revenue": 4000, "growth": 12.5}}}
+  ]
+}

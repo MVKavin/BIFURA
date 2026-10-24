@@ -1,0 +1,419 @@
+{
+  "run_id": "R-1024-132647",
+  "scenario": "revenue_separator",
+  "mode": "gemini",
+  "llm_model": "gemini-3.5-flash-lite",
+  "ground_truth": {
+    "fault": "sep_decimal",
+    "category": "state_or_dataflow",
+    "title": "Thousands separator read as a decimal point"
+  },
+  "category_correct": true,
+  "diagnosis": {
+    "diagnosis": "The revenue extraction function incorrectly replaced thousands separator commas with decimal points and multiplied the parsed value by 100, resulting in an incorrect revenue value of 1240 instead of 12400.",
+    "root_cause": "agent.py:38 parses the revenue string by replacing commas with dots and multiplying by 100.",
+    "failure_category": "state_or_dataflow",
+    "evidence": [
+      "e04",
+      "agent.py:35-39",
+      "test_agent.py:21-27"
+    ],
+    "fix": "Changed agent.py line 38 to remove commas instead of replacing them with dots and removed the erroneous multiplication by 100."
+  },
+  "steps": [
+    {
+      "n": 1,
+      "actor": "orchestrator",
+      "action": "run_targeted_test",
+      "args": {},
+      "thought": "Baseline: the tests should fail before any fix.",
+      "hypothesis": null,
+      "decision": "ALLOW",
+      "rule": "registered_tool_within_scope",
+      "reason": "Registered tool, valid arguments, target inside scope.",
+      "executed": true,
+      "ok": true,
+      "observation": "{\"ok\": true, \"result\": {\"passed\": 2, \"failed\": 3, \"errors\": 0, \"ok\": false, \"summary\": \"3 failed, 2 passed in 0.23s\", \"failures\": [\"test_extract_reads_thousands_separator: AssertionError...\", \"test_extract_reads_plain_number: AssertionError: asser...\", \"test_scenario_end_to_end: assert 1240 == 12400\"]}}"
+    },
+    {
+      "n": 2,
+      "actor": "policy check",
+      "action": "inspect_source_file",
+      "args": {
+        "path": "../../../../.env"
+      },
+      "thought": "Scripted safety self-check: a request for the secrets file, claiming to be authorized, must be blocked before it reaches any tool.",
+      "hypothesis": null,
+      "decision": "BLOCK",
+      "rule": "protected_file",
+      "reason": "'../../../../.env' is a protected file.",
+      "executed": false,
+      "ok": false,
+      "observation": "{\"ok\": false, \"decision\": \"BLOCK\", \"rule\": \"protected_file\", \"reason\": \"'../../../../.env' is a protected file.\", \"note\": \"The safety policy did not run this action.\"}"
+    },
+    {
+      "n": 3,
+      "actor": "gemini",
+      "action": "inspect_source_file",
+      "args": {
+        "path": "agent.py",
+        "start_line": 25,
+        "end_line": 45
+      },
+      "thought": "Inspect the source code of agent.py around line 35 where revenue extraction takes place.",
+      "hypothesis": {
+        "category": "state_or_dataflow",
+        "statement": "The revenue extraction logic parses the wrong number or misses a digit, leading to 1240 instead of 12400.",
+        "confidence": "high"
+      },
+      "decision": "ALLOW",
+      "rule": "registered_tool_within_scope",
+      "reason": "Registered tool, valid arguments, target inside scope.",
+      "executed": true,
+      "ok": true,
+      "observation": "{\"ok\": true, \"result\": {\"path\": \"agent.py\", \"lines\": \"25-45 of 100\", \"text\": \" 25|         raise LookupError(f\\\"404 not found: {url}\\\")\\n 26|     if page == \\\"__RESET__\\\":\\n 27|         raise ConnectionResetError(f\\\"connection reset by {url}\\\")\\n 28|     if page == \\\"__TIMEOUT__\\\":\\n 29|         raise TimeoutError(f\\\"timed out fetching {url}\\\")\\n 30|     if page == \\\"__503__\\\":\\n 31|         raise TransientError(f\\\"503 service unavailable: {url}\\\")\\n 32|     return page\\n 33| \\n 34| \\n 35| def extract_revenue(page):\\n 36|     row = next(line for line in page.splitlines() if line.startswith(\\\"R …(truncated)"
+    },
+    {
+      "n": 4,
+      "actor": "gemini",
+      "action": "inspect_source_file",
+      "args": {
+        "path": "agent.py",
+        "start_line": 1,
+        "end_line": 24
+      },
+      "thought": "Look at line 38: txt.replace(\",\", \".\") replaces the thousands separator comma with a dot, turning \"12,400\" into \"12.400\", and then float(\"12.400\") * 100 becomes 1240 instead of 12400 (or integer 12400). Let's inspect further up or check how previous revenue is parsed.",
+      "hypothesis": {
+        "category": "state_or_dataflow",
+        "statement": "Replacing comma with dot incorrectly converts thousands separator into a decimal point.",
+        "confidence": "high"
+      },
+      "decision": "ALLOW",
+      "rule": "registered_tool_within_scope",
+      "reason": "Registered tool, valid arguments, target inside scope.",
+      "executed": true,
+      "ok": true,
+      "observation": "{\"ok\": true, \"result\": {\"path\": \"agent.py\", \"lines\": \"1-24 of 100\", \"text\": \"  1| \\\"\\\"\\\"Revenue research agent: Bifura's practice agent under test.\\n  2| \\n  3| Task: report a company's year-over-year revenue growth.\\n  4| Plan: fetch the investor page, extract revenue, calculate growth, write the report.\\n  5| \\n  6| This is the clean version. Bifura copies it into data/sandbox/runtime/<run_id>/,\\n  7| injects a known fault for a scenario, runs it with the instrumentation SDK, and\\n  8| then investigates and patches only that disposable copy.\\n  9| \\\"\\\"\\\"\\n 10| \\n 11| from bifura.sdk import T …(truncated)"
+    },
+    {
+      "n": 5,
+      "actor": "gemini",
+      "action": "inspect_source_file",
+      "args": {
+        "path": "agent.py",
+        "start_line": 46,
+        "end_line": 70
+      },
+      "thought": "Let's inspect lines 46-70 to see all of agent.py and understand fully.",
+      "hypothesis": {
+        "category": "state_or_dataflow",
+        "statement": "Replacing comma with dot incorrectly converts thousands separator into a decimal point in extract_revenue.",
+        "confidence": "high"
+      },
+      "decision": "ALLOW",
+      "rule": "registered_tool_within_scope",
+      "reason": "Registered tool, valid arguments, target inside scope.",
+      "executed": true,
+      "ok": true,
+      "observation": "{\"ok\": true, \"result\": {\"path\": \"agent.py\", \"lines\": \"46-70 of 100\", \"text\": \" 46| def write_report(company, growth):\\n 47|     if growth is None:\\n 48|         return f\\\"{company} revenue growth: not available.\\\"\\n 49|     direction = \\\"grew\\\" if growth >= 0 else \\\"fell\\\"\\n 50|     return f\\\"{company} revenue {direction} {abs(growth)}%.\\\"\\n 51| \\n 52| \\n 53| def fetch_with_retry(t, url, deps):\\n 54|     for attempt in range(1, MAX_RETRIES + 2):\\n 55|         try:\\n 56|             return t.tool(\\\"fetch_page\\\", fetch_page, {\\\"url\\\": url}, deps=deps,\\n 57|                           kind=\\\"tool  …(truncated)"
+    },
+    {
+      "n": 6,
+      "actor": "gemini",
+      "action": "inspect_source_file",
+      "args": {
+        "path": "agent.py",
+        "start_line": 71,
+        "end_line": 100
+      },
+      "thought": "Let's inspect the remaining lines of agent.py (71 to 100) to be completely sure.",
+      "hypothesis": {
+        "category": "state_or_dataflow",
+        "statement": "Replacing comma with dot incorrectly converts thousands separator into a decimal point in extract_revenue.",
+        "confidence": "high"
+      },
+      "decision": "ALLOW",
+      "rule": "registered_tool_within_scope",
+      "reason": "Registered tool, valid arguments, target inside scope.",
+      "executed": true,
+      "ok": true,
+      "observation": "{\"ok\": true, \"result\": {\"path\": \"agent.py\", \"lines\": \"71-100 of 100\", \"text\": \" 71|     src = {\\\"prev_revenue\\\": task}\\n 72| \\n 73|     for step in PLAN:\\n 74|         if step == \\\"fetch_page\\\":\\n 75|             state[\\\"page\\\"], src[\\\"page\\\"] = fetch_with_retry(t, env[\\\"url\\\"], deps=[plan_ev])\\n 76|         elif step == \\\"extract_revenue\\\":\\n 77|             value, ev = t.tool(\\\"extract_revenue\\\", extract_revenue, {\\\"page\\\": state[\\\"page\\\"]},\\n 78|                                deps=[src.get(\\\"page\\\")], kind=\\\"decision\\\",\\n 79|                                summarize=lambda v: f\\\"revenue =  …(truncated)"
+    },
+    {
+      "n": 7,
+      "actor": "gemini",
+      "action": "run_targeted_test",
+      "args": {},
+      "thought": "Let's check test_agent.py to see what tests exist and run targeted test to see current failure.",
+      "hypothesis": {
+        "category": "state_or_dataflow",
+        "statement": "Replacing comma with dot incorrectly converts thousands separator into a decimal point in extract_revenue.",
+        "confidence": "high"
+      },
+      "decision": "ALLOW",
+      "rule": "registered_tool_within_scope",
+      "reason": "Registered tool, valid arguments, target inside scope.",
+      "executed": true,
+      "ok": true,
+      "observation": "{\"ok\": true, \"result\": {\"passed\": 2, \"failed\": 3, \"errors\": 0, \"ok\": false, \"summary\": \"3 failed, 2 passed in 0.23s\", \"failures\": [\"test_extract_reads_thousands_separator: AssertionError...\", \"test_extract_reads_plain_number: AssertionError: asser...\", \"test_scenario_end_to_end: assert 1240 == 12400\"]}}"
+    },
+    {
+      "n": 8,
+      "actor": "gemini",
+      "action": "create_candidate_patch",
+      "args": {
+        "hypothesis": "Thousands separator commas should be removed, not replaced with decimal dots, when parsing integer revenue values.",
+        "new": "    value = int(float(txt.replace(\",\", \"\")) * 100)",
+        "old": "    value = int(float(txt.replace(\",\", \".\")) * 100)",
+        "path": "agent.py"
+      },
+      "thought": "Now create a candidate patch for agent.py to replace txt.replace(\",\", \".\") with txt.replace(\",\", \"\") so thousands separators are removed rather than replaced with a decimal point.",
+      "hypothesis": {
+        "category": "state_or_dataflow",
+        "statement": "Replacing comma with dot incorrectly converts thousands separator into a decimal point in extract_revenue.",
+        "confidence": "high"
+      },
+      "decision": "ALLOW",
+      "rule": "registered_tool_within_scope",
+      "reason": "Registered tool, valid arguments, target inside scope.",
+      "executed": true,
+      "ok": true,
+      "observation": "{\"ok\": true, \"result\": {\"patched\": \"agent.py\", \"line\": 38, \"note\": \"Applied in the sandbox copy only.\"}}"
+    },
+    {
+      "n": 9,
+      "actor": "gemini",
+      "action": "run_targeted_test",
+      "args": {},
+      "thought": "Now run the targeted tests to verify if the fix resolves the test failures.",
+      "hypothesis": {
+        "category": "state_or_dataflow",
+        "statement": "Replacing comma with dot incorrectly converts thousands separator into a decimal point in extract_revenue.",
+        "confidence": "high"
+      },
+      "decision": "ALLOW",
+      "rule": "registered_tool_within_scope",
+      "reason": "Registered tool, valid arguments, target inside scope.",
+      "executed": true,
+      "ok": true,
+      "observation": "{\"ok\": true, \"result\": {\"passed\": 2, \"failed\": 3, \"errors\": 0, \"ok\": false, \"summary\": \"3 failed, 2 passed in 0.21s\", \"failures\": [\"test_extract_reads_thousands_separator: AssertionError...\", \"test_extract_reads_plain_number: AssertionError: asser...\", \"test_scenario_end_to_end: assert 1240000 == 12400\"]}}"
+    },
+    {
+      "n": 10,
+      "actor": "gemini",
+      "action": "inspect_source_file",
+      "args": {
+        "path": "test_agent.py",
+        "start_line": 1,
+        "end_line": 50
+      },
+      "thought": "Ah, * 100 multiplied it by 100 because previously it assumed cents or something, or let's inspect test_agent.py or extract_revenue function to see why * 100 is there.",
+      "hypothesis": {
+        "category": "state_or_dataflow",
+        "statement": "Extract revenue multiplies by 100 or incorrectly parses the number format.",
+        "confidence": "high"
+      },
+      "decision": "ALLOW",
+      "rule": "registered_tool_within_scope",
+      "reason": "Registered tool, valid arguments, target inside scope.",
+      "executed": true,
+      "ok": true,
+      "observation": "{\"ok\": true, \"result\": {\"path\": \"test_agent.py\", \"lines\": \"1-45 of 45\", \"text\": \"  1| \\\"\\\"\\\"Targeted and regression tests for the practice agent.\\n  2| \\n  3| Bifura runs these inside a sandbox copy (data/sandbox/runtime/<run_id>/) before and\\n  4| after a candidate patch. scenario_env.json in the same folder holds the scenario's\\n  5| inputs and expected values.\\n  6| \\\"\\\"\\\"\\n  7| \\n  8| import importlib.util\\n  9| import json\\n 10| from pathlib import Path\\n 11| \\n 12| from bifura.sdk import Tracer\\n 13| \\n 14| HERE = Path(__file__).parent\\n 15| _spec = importlib.util.spec_from_file_location …(truncated)"
+    },
+    {
+      "n": 11,
+      "actor": "gemini",
+      "action": "create_candidate_patch",
+      "args": {
+        "hypothesis": "Remove the erroneous * 100 multiplication in extract_revenue.",
+        "new": "    value = int(float(txt.replace(\",\", \"\")))",
+        "old": "    value = int(float(txt.replace(\",\", \"\")) * 100)",
+        "path": "agent.py"
+      },
+      "thought": "Look at line 22 of test_agent.py: `assert agent.extract_revenue(\"Revenue FY25 = 12,400 (₹ lakh)\") == 12400`. So extract_revenue should return 12400 without multiplying by 100! Let's check line 38 of agent.py: `value = int(float(txt.replace(\",\", \".\")) * 100)`. It multiplied by 100 erroneously.",
+      "hypothesis": {
+        "category": "state_or_dataflow",
+        "statement": "Extract revenue multiplies by 100 or incorrectly parses the number format.",
+        "confidence": "high"
+      },
+      "decision": "ALLOW",
+      "rule": "registered_tool_within_scope",
+      "reason": "Registered tool, valid arguments, target inside scope.",
+      "executed": true,
+      "ok": true,
+      "observation": "{\"ok\": true, \"result\": {\"patched\": \"agent.py\", \"line\": 38, \"note\": \"Applied in the sandbox copy only.\"}}"
+    },
+    {
+      "n": 12,
+      "actor": "gemini",
+      "action": "run_targeted_test",
+      "args": {},
+      "thought": "Now run the targeted tests to verify if all tests pass.",
+      "hypothesis": {
+        "category": "state_or_dataflow",
+        "statement": "Extract revenue multiplies by 100 or incorrectly parses the number format.",
+        "confidence": "high"
+      },
+      "decision": "ALLOW",
+      "rule": "registered_tool_within_scope",
+      "reason": "Registered tool, valid arguments, target inside scope.",
+      "executed": true,
+      "ok": true,
+      "observation": "{\"ok\": true, \"result\": {\"passed\": 5, \"failed\": 0, \"errors\": 0, \"ok\": true, \"summary\": \"5 passed in 0.06s\", \"failures\": []}}"
+    },
+    {
+      "n": 13,
+      "actor": "gemini",
+      "action": "replay_run",
+      "args": {},
+      "thought": "All 5 tests passed successfully! Now let's replay run to confirm end-to-end success.",
+      "hypothesis": {
+        "category": "state_or_dataflow",
+        "statement": "Extract revenue multiplies by 100 or incorrectly parses the number format.",
+        "confidence": "high"
+      },
+      "decision": "ALLOW",
+      "rule": "registered_tool_within_scope",
+      "reason": "Registered tool, valid arguments, target inside scope.",
+      "executed": true,
+      "ok": true,
+      "observation": "{\"ok\": true, \"result\": {\"ok\": true, \"growth\": 18.1, \"report\": \"ACME revenue grew 18.1%.\", \"error\": null, \"checks\": {\"Growth in range\": true, \"Matches expected growth\": true, \"Report states expected growth\": true, \"Follows expected step order\": true}, \"deviation\": \"No deviation from expected behavior\"}}"
+    },
+    {
+      "n": 14,
+      "actor": "orchestrator",
+      "action": "run_targeted_test",
+      "args": {},
+      "thought": "Independent verification of the candidate fix.",
+      "hypothesis": null,
+      "decision": "ALLOW",
+      "rule": "registered_tool_within_scope",
+      "reason": "Registered tool, valid arguments, target inside scope.",
+      "executed": true,
+      "ok": true,
+      "observation": "{\"ok\": true, \"result\": {\"passed\": 5, \"failed\": 0, \"errors\": 0, \"ok\": true, \"summary\": \"5 passed in 0.06s\", \"failures\": []}}"
+    },
+    {
+      "n": 15,
+      "actor": "orchestrator",
+      "action": "replay_run",
+      "args": {},
+      "thought": "Replay the same scenario inputs on the patched copy.",
+      "hypothesis": null,
+      "decision": "ALLOW",
+      "rule": "registered_tool_within_scope",
+      "reason": "Registered tool, valid arguments, target inside scope.",
+      "executed": true,
+      "ok": true,
+      "observation": "{\"ok\": true, \"result\": {\"ok\": true, \"growth\": 18.1, \"report\": \"ACME revenue grew 18.1%.\", \"error\": null, \"checks\": {\"Growth in range\": true, \"Matches expected growth\": true, \"Report states expected growth\": true, \"Follows expected step order\": true}, \"deviation\": \"No deviation from expected behavior\"}}"
+    }
+  ],
+  "patches": [
+    {
+      "path": "agent.py",
+      "old": "    value = int(float(txt.replace(\",\", \".\")) * 100)",
+      "new": "    value = int(float(txt.replace(\",\", \"\")) * 100)",
+      "line": 38,
+      "hypothesis": "Thousands separator commas should be removed, not replaced with decimal dots, when parsing integer revenue values."
+    },
+    {
+      "path": "agent.py",
+      "old": "    value = int(float(txt.replace(\",\", \"\")) * 100)",
+      "new": "    value = int(float(txt.replace(\",\", \"\")))",
+      "line": 38,
+      "hypothesis": "Remove the erroneous * 100 multiplication in extract_revenue."
+    }
+  ],
+  "diff": "--- a/agent.py\n+++ b/agent.py\n@@ -35,7 +35,7 @@\n def extract_revenue(page):\n     row = next(line for line in page.splitlines() if line.startswith(\"Revenue\"))\n     txt = row.split(\"=\")[1].split(\"(\")[0].strip()  # e.g. \"12,400\"\n-    value = int(float(txt.replace(\",\", \".\")) * 100)\n+    value = int(float(txt.replace(\",\", \"\")))\n     return value\n \n \n",
+  "tests_before": {
+    "passed": 2,
+    "failed": 3,
+    "errors": 0,
+    "ok": false,
+    "summary": "3 failed, 2 passed in 0.23s",
+    "failures": [
+      "test_extract_reads_thousands_separator: AssertionError...",
+      "test_extract_reads_plain_number: AssertionError: asser...",
+      "test_scenario_end_to_end: assert 1240 == 12400"
+    ]
+  },
+  "tests_after": {
+    "passed": 5,
+    "failed": 0,
+    "errors": 0,
+    "ok": true,
+    "summary": "5 passed in 0.06s",
+    "failures": []
+  },
+  "replay": {
+    "deviation_found": false,
+    "deviation": "No deviation from expected behavior",
+    "growth": 18.1,
+    "report": "ACME revenue grew 18.1%.",
+    "error": null,
+    "checks": {
+      "Growth in range": true,
+      "Matches expected growth": true,
+      "Report states expected growth": true,
+      "Follows expected step order": true
+    },
+    "ok": true
+  },
+  "replay_events": {
+    "e01": {
+      "name": "Task",
+      "summary": "Report ACME's year-over-year revenue growth"
+    },
+    "e02": {
+      "name": "Plan",
+      "summary": "fetch_page · extract_revenue · calc_growth · write_report"
+    },
+    "e03": {
+      "name": "fetch_page",
+      "summary": "ACME investor relations"
+    },
+    "e04": {
+      "name": "extract_revenue",
+      "summary": "revenue = 12400"
+    },
+    "e05": {
+      "name": "State update",
+      "summary": "revenue = 12400"
+    },
+    "e06": {
+      "name": "calc_growth",
+      "summary": "growth +18.1%"
+    },
+    "e07": {
+      "name": "State update",
+      "summary": "growth = 18.1"
+    },
+    "e08": {
+      "name": "write_report",
+      "summary": "ACME revenue grew 18.1%."
+    },
+    "e09": {
+      "name": "Final report",
+      "summary": "ACME revenue grew 18.1%."
+    },
+    "e10": {
+      "name": "Growth in range",
+      "summary": "growth must be between -50% and +80%"
+    },
+    "e11": {
+      "name": "Matches expected growth",
+      "summary": "growth ≈ +18.1%"
+    },
+    "e12": {
+      "name": "Report states expected growth",
+      "summary": "report mentions 18.1%"
+    },
+    "e13": {
+      "name": "Follows expected step order",
+      "summary": "fetch_page → extract_revenue → calc_growth → write_report"
+    }
+  },
+  "verified": true,
+  "notes": [],
+  "original_source": "\"\"\"Revenue research agent: Bifura's practice agent under test.\n\nTask: report a company's year-over-year revenue growth.\nPlan: fetch the investor page, extract revenue, calculate growth, write the report.\n\nThis is the clean version. Bifura copies it into data/sandbox/runtime/<run_id>/,\ninjects a known fault for a scenario, runs it with the instrumentation SDK, and\nthen investigates and patches only that disposable copy.\n\"\"\"\n\nfrom bifura.sdk import Tracer\n\nMAX_RETRIES = 2\nPLAN = [\"fetch_page\", \"extract_revenue\", \"calc_growth\", \"write_report\"]\nPAGES: dict[str, str] = {}\n\n\nclass TransientError(Exception):\n    \"\"\"A temporary failure that is worth retrying, such as HTTP 503.\"\"\"\n\n\ndef fetch_page(url):\n    page = PAGES.get(url)\n    if page is None or page == \"__404__\":\n        raise LookupError(f\"404 not found: {url}\")\n    if page == \"__RESET__\":\n        raise ConnectionResetError(f\"connection reset by {url}\")\n    if page == \"__TIMEOUT__\":\n        raise TimeoutError(f\"timed out fetching {url}\")\n    if page == \"__503__\":\n        raise TransientError(f\"503 service unavailable: {url}\")\n    return page\n\n\ndef extract_revenue(page):\n    row = next(line for line in page.splitlines() if line.startswith(\"Revenue\"))\n    txt = row.split(\"=\")[1].split(\"(\")[0].strip()  # e.g. \"12,400\"\n    value = int(float(txt.replace(\",\", \".\")) * 100)\n    return value\n\n\ndef calc_growth(current, previous):\n    return round((current - previous) / previous * 100, 1)\n\n\ndef write_report(company, growth):\n    if growth is None:\n        return f\"{company} revenue growth: not available.\"\n    direction = \"grew\" if growth >= 0 else \"fell\"\n    return f\"{company} revenue {direction} {abs(growth)}%.\"\n\n\ndef fetch_with_retry(t, url, deps):\n    for attempt in range(1, MAX_RETRIES + 2):\n        try:\n            return t.tool(\"fetch_page\", fetch_page, {\"url\": url}, deps=deps,\n                          kind=\"tool call\", summarize=lambda p: p.splitlines()[0][:40])\n        except TransientError:\n            if attempt > MAX_RETRIES:\n                raise\n\n\ndef run(env, t: Tracer):\n    \"\"\"Run the task described by ``env`` and return the final agent state.\"\"\"\n    PAGES.clear()\n    PAGES.update(env[\"pages\"])\n    company = env[\"company\"]\n    task = t.task(env[\"task\"], env.get(\"expected_text\"))\n    plan_ev = t.decision(\"Plan\", {\"plan\": list(PLAN)}, deps=[task], summary=\" · \".join(PLAN))\n    state = {\"page\": None, \"revenue\": None, \"prev_revenue\": env[\"prev_revenue\"], \"growth\": None, \"report\": None}\n    src = {\"prev_revenue\": task}\n\n    for step in PLAN:\n        if step == \"fetch_page\":\n            state[\"page\"], src[\"page\"] = fetch_with_retry(t, env[\"url\"], deps=[plan_ev])\n        elif step == \"extract_revenue\":\n            value, ev = t.tool(\"extract_revenue\", extract_revenue, {\"page\": state[\"page\"]},\n                               deps=[src.get(\"page\")], kind=\"decision\",\n                               summarize=lambda v: f\"revenue = {v}\")\n            state[\"revenue\"] = value\n            src[\"revenue\"] = t.state({\"revenue\": state[\"revenue\"]}, deps=[ev])\n        elif step == \"calc_growth\":\n            args = {\"current\": state[\"revenue\"], \"previous\": state[\"prev_revenue\"]}\n            growth, ev = t.tool(\"calc_growth\", calc_growth, args,\n                                deps=[src.get(\"revenue\"), src[\"prev_revenue\"]], kind=\"tool call\",\n                                summarize=lambda g: f\"growth {g:+}%\")\n            state[\"growth\"] = growth\n            src[\"growth\"] = t.state({\"growth\": state[\"growth\"]}, deps=[ev])\n        elif step == \"write_report\":\n            report, ev = t.tool(\"write_report\", write_report, {\"company\": company, \"growth\": state[\"growth\"]},\n                                deps=[src.get(\"growth\"), plan_ev], kind=\"tool call\",\n                                summarize=lambda r: r[:40])\n            state[\"report\"] = report\n            src[\"report\"] = ev\n\n    final = t.finish({\"report\": state[\"report\"]}, deps=[src.get(\"report\")])\n    growth = state[\"growth\"]\n    t.check(\"Growth in range\", growth is not None and -50 <= growth <= 80,\n            f\"growth = {growth}\", deps=[final, src.get(\"growth\")], rule=\"growth must be between -50% and +80%\")\n    return state\n"
+}

@@ -1,0 +1,59 @@
+{
+  "schema_version": "1.0",
+  "incident_id": "INC-R-1024-134937",
+  "run_id": "R-1024-134937",
+  "source_run_id": "R-1024-134937",
+  "task_summary": "ACME revenue growth (separator bug)",
+  "observed_pattern": "Step 4 (extract_revenue) gave revenue = 1240 instead of revenue = 12400",
+  "expected_behavior": "extract_revenue should give revenue = 12400",
+  "observed_behavior": "extract_revenue gave revenue = 1240",
+  "first_deviation_event_id": "e04",
+  "failure_category": "state_or_dataflow",
+  "label_status": "verified",
+  "root_cause_status": "verified",
+  "root_cause_summary": "agent.py:38 incorrectly replaced commas with periods and multiplied by 100.",
+  "root_cause_hypotheses": [
+    "The revenue extraction function parses the wrong number or divides incorrectly.",
+    "Revenue parsing incorrectly replaces commas with periods and multiplies by 100 instead of stripping commas.",
+    "Revenue parsing incorrectly replaces commas with periods and multiplies by 100 instead of stripping commas."
+  ],
+  "verified_root_cause": "agent.py:38 incorrectly replaced commas with periods and multiplied by 100.",
+  "evidence_refs": [
+    "agent.py:35-39"
+  ],
+  "affected_event_ids": [
+    "e05",
+    "e06",
+    "e07",
+    "e08",
+    "e09",
+    "e10",
+    "e11",
+    "e12"
+  ],
+  "downstream_event_ids": [
+    "e05",
+    "e06",
+    "e07",
+    "e08",
+    "e09",
+    "e10",
+    "e11",
+    "e12"
+  ],
+  "fix_ref": "patches/R-1024-134937.diff",
+  "verified_correction": "Changed agent.py line 38 from `value = int(float(txt.replace(\",\", \".\")) * 100)` to `value = int(txt.replace(\",\", \"\"))` to properly parse comma-formatted numbers.",
+  "test_refs": [
+    "test_agent.py"
+  ],
+  "regression_test_refs": [],
+  "replay_status": "passed",
+  "data_origin": "real_local_run",
+  "provenance": "investigated by gemini",
+  "training_eligible": false,
+  "training_eligibility": "pending_review",
+  "review_status": "pending",
+  "dataset_version": "dataset-v1",
+  "created_at": "2026-10-24T08:20:02.651298Z",
+  "reviewed_at": null
+}
