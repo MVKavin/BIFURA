@@ -24,7 +24,7 @@ def sidebar_settings() -> dict[str, Any]:
     provider = st.radio("AI model", options, index=default, key="chat_provider",
                         format_func=lambda p: PROVIDERS[p]["label"] + ("" if statuses[p].ready else "  (not set up)"))
     if not statuses[provider].ready:
-        st.warning(statuses[provider].message, icon="⚠️")
+        st.warning(statuses[provider].message, icon=":material/warning:")
         with st.expander(f"How to add {PROVIDERS[provider]['label']}"):
             key = PROVIDERS[provider]["keys"][0]
             pkg = {"gemini": "", "gpt": "pip install openai", "claude": "pip install anthropic"}[provider]
@@ -57,7 +57,7 @@ def show_result(t: dict[str, Any]) -> None:
         if t.get("expected"):
             st.caption(f"Expected answer: {t['expected']}")
     first = t["attempts"][0] if t["attempts"] else None
-    with st.chat_message("assistant", avatar="🤖"):
+    with st.chat_message("assistant", avatar=":material/smart_toy:"):
         st.markdown(f"**{t['label']}** ({t['model']})" + ("  ·  _demo: asked to slip one mistake_" if t.get("demo_slip") else ""))
         if not first:
             st.error(f"The AI did not answer: {t.get('error')}")
@@ -66,12 +66,13 @@ def show_result(t: dict[str, Any]) -> None:
         _steps_table(first["steps"])
     wrong = next((s for s in first["steps"] if s["status"] == "wrong"), None)
     affected = [s for s in first["steps"] if s["status"] == "affected"]
-    with st.chat_message("assistant", avatar="🔀"):
+    with st.chat_message("assistant", avatar=":material/call_split:"):
         st.markdown("**Bifura's check**")
         for p in first["given_problems"]:
             st.error(f"Copied a wrong number from the question: {p}")
         if wrong:
-            st.error(f"**First wrong step: step {wrong['n']} ({wrong['name']}).** {wrong['note']}.")
+            # formulas go in code style so "*" is shown, not read as markdown bold/italic
+            st.error(f"**First wrong step: step {wrong['n']} ({wrong['name']}).** Recalculating: `{wrong['note']}`")
             st.markdown(f"- **Likely type of mistake:** {wrong['mistake_type']} _(rule-based guess)_\n"
                         + (f"- **Spoiled later steps:** " + ", ".join(f"step {s['n']} ({s['name']})" for s in affected) + "\n"
                            if affected else "")
@@ -89,18 +90,19 @@ def show_result(t: dict[str, Any]) -> None:
                            + (f" and matches {t['expected']}." if t.get("expected") else "."))
             else:
                 st.error("✗ Still wrong after the correction attempts. Do not trust this answer.")
-        st.button("▶ Watch it in the story view", key=f"story-{t['run_id']}", on_click=_open_story, args=(t["run_id"],))
+        st.button("Watch it in the story view", icon=":material/play_circle:", key=f"story-{t['run_id']}", on_click=_open_story, args=(t["run_id"],))
 
 
 def _open_story(run_id: str) -> None:
     """Switch to the story view on this chat run (callback: runs before widgets are drawn)."""
     st.session_state.view_radio = "agent"
     st.session_state.active, st.session_state.autoplay = run_id, True
+    st.session_state.open_chat = run_id  # show this chat run in the agent view's run list
     st.cache_data.clear()  # so the run list includes this new chat run
 
 
 def main_area(settings: dict[str, Any]) -> None:
-    st.markdown("## 💬 Chat check")
+    st.markdown("## :material/calculate: Numeric chat check")
     st.caption("Ask Gemini, GPT or Claude a numerical problem (circuits, physics, maths). The AI answers step by step; "
                "Bifura recalculates every step exactly, finds the **first** wrong step, asks the AI to fix it, "
                "and checks the fix. Bifura proves calculation mistakes; give an expected answer to also catch a wrong formula.")

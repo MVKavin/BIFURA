@@ -25,7 +25,14 @@ class OpenAIClient:
     def next_json(self, system: str, turns: list[dict[str, str]]) -> dict[str, Any]:
         o = self._openai
         messages = [{"role": "system", "content": system + "\nReply with one JSON object only."}]
-        messages += [{"role": "assistant" if t["role"] == "model" else "user", "content": t["text"]} for t in turns]
+        import base64
+        for t in turns:
+            content: Any = t["text"]
+            if t.get("image"):
+                data, mime = t["image"]
+                url = f"data:{mime};base64,{base64.standard_b64encode(data).decode()}"
+                content = [{"type": "text", "text": t["text"]}, {"type": "image_url", "image_url": {"url": url}}]
+            messages.append({"role": "assistant" if t["role"] == "model" else "user", "content": content})
         try:
             resp = self._client.chat.completions.create(model=self.model, messages=messages,
                                                         response_format={"type": "json_object"})

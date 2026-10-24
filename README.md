@@ -34,6 +34,9 @@ streamlit run app.py
 ```
 
 In the sidebar, pick a scenario and click **▶ Run agent & investigate**.
+Or choose **⚡ KVL circuit check** to check KVL equations (from a pasted chat, an AI, or yourself)
+against Bifura's own derivation, or **💬 Numeric chat check** to ask Gemini, GPT or Claude a numerical
+problem and let Bifura recalculate every step, find the first wrong one, and get the AI to correct it.
 Full walkthrough, controls and demo script: `docs/DASHBOARD_GUIDE.md`.
 
 ## Run tests

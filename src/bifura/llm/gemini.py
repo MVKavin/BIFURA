@@ -75,7 +75,13 @@ class GeminiClient:
 
     def next_json(self, system: str, turns: list[dict[str, str]]) -> dict[str, Any]:
         t = self._types
-        contents = [t.Content(role=turn["role"], parts=[t.Part(text=turn["text"])]) for turn in turns]
+        contents = []
+        for turn in turns:
+            parts = [t.Part(text=turn["text"])]
+            if turn.get("image"):  # (bytes, mime type) — e.g. a circuit picture
+                data, mime = turn["image"]
+                parts.insert(0, t.Part.from_bytes(data=data, mime_type=mime))
+            contents.append(t.Content(role=turn["role"], parts=parts))
         config = t.GenerateContentConfig(system_instruction=system, temperature=self.temperature,
                                          response_mime_type="application/json", max_output_tokens=4096)
         last: Exception | None = None

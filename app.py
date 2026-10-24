@@ -24,7 +24,7 @@ from bifura.llm import llm_status
 from bifura.schemas.models import LabelStatus
 from bifura.tracing.runner import load_scenarios
 
-st.set_page_config(page_title="Bifura", page_icon="🔎", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="Bifura", page_icon=":material/call_split:", layout="wide", initial_sidebar_state="expanded")
 st.markdown(
     """
     <style>
@@ -38,6 +38,9 @@ st.markdown(
         color: #ecebe7; min-height: 0; padding: 4px 10px; font-size: 13px;}
       .st-key-hidectl button:hover, .st-key-showctl button:hover {border-color: #ff6b3d; color: #ff6b3d;}
       .st-key-showctl {position: fixed !important; top: 10px; left: 10px; z-index: 1000; width: auto !important;}
+      /* "Hide controls" stays pinned at the top of the sidebar even after scrolling it */
+      [data-testid="stSidebar"] .st-key-hidectl {position: sticky; top: 0; z-index: 20; background: #131314;
+        padding: 10px 0 8px; margin-top: -10px;}
       .block-container, [data-testid="stMainBlockContainer"] {padding: 0 !important; max-width: 100% !important;}
       [data-testid="stAppViewContainer"], .stApp {background: #0d0d0e;}
       /* Streamlit fades the page while a button's work runs; keep the dashboard at full brightness */
@@ -65,10 +68,16 @@ ss.setdefault("view_radio", "agent")
 # Controls hidden: remove the sidebar so the dashboard uses the full width, and show a small
 # floating ☰ button to bring it back. Both elements always exist (only CSS changes), so the
 # dashboard iframe is not reloaded and a playing story keeps going.
+# Streamlit also collapses the sidebar by itself on smaller windows (its own arrow is hidden here),
+# which used to leave no way back. So when controls are on, force the sidebar open.
 _ctl_css = ("[data-testid='stSidebar']{display:none !important;}" if not ss.controls
-            else ".st-key-showctl{display:none !important;}")
+            else ".st-key-showctl{display:none !important;}"
+                 "[data-testid='stSidebar']{transform:none !important;margin-left:0 !important;width:300px !important;"
+                 "min-width:300px !important;max-width:300px !important;visibility:visible !important;"
+                 "transition:none !important;}"
+                 "[data-testid='stSidebar'] > div{width:300px !important;}")
 st.markdown(f"<style>{_ctl_css}</style>", unsafe_allow_html=True)
-if st.button("☰ Controls", key="showctl", help="Show the Bifura controls sidebar"):
+if st.button("Controls", key="showctl", icon=":material/menu:", help="Show the Bifura controls sidebar"):
     ss.controls = True
     st.rerun()
 
@@ -91,15 +100,23 @@ status = llm_status()
 scenarios = load_scenarios()
 
 with st.sidebar:
-    if st.button("⟨ Hide controls", key="hidectl"):
+    if st.button("Hide controls", key="hidectl", icon=":material/left_panel_close:"):
         ss.controls = False
         st.rerun()
-    st.markdown("### 🔀 Bifura Debugger")
+    st.markdown(
+        """<div style="display:flex;align-items:center;gap:10px;margin:6px 0 2px">
+             <svg width="26" height="26" viewBox="0 0 20 20" fill="none" stroke="#ff6b3d" stroke-width="1.8"
+                  stroke-linecap="round" style="filter:drop-shadow(0 0 6px rgba(255,107,61,.45))">
+               <path d="M3 10h6c3 0 3-5 8-5M9 10c3 0 3 5 8 5"/><circle cx="3" cy="10" r="1.3" fill="#ff6b3d"/></svg>
+             <span style="font:600 19px/1 system-ui,-apple-system,'Segoe UI',sans-serif;letter-spacing:-.01em;color:#ecebe7">Bifura</span>
+             <span style="font:600 10px/1 ui-monospace,Menlo,monospace;letter-spacing:.08em;color:#8d8b86;
+                   border:1px solid #3c3d41;border-radius:5px;padding:3px 6px">DEBUGGER</span></div>""",
+        unsafe_allow_html=True)
     st.caption("Incident-informed predictive debugging for multi-step AI agents.")
     if status.ready:
-        st.success(f"Gemini connected · {status.model or 'model auto-selected'}", icon="✅")
+        st.success(f"Gemini connected · {status.model or 'model auto-selected'}", icon=":material/check_circle:")
     else:
-        st.warning(status.message, icon="⚠️")
+        st.warning(status.message, icon=":material/warning:")
         with st.expander("How to connect Gemini"):
             st.markdown(
                 "1. Get a key at **aistudio.google.com → Get API key**.\n"
@@ -107,20 +124,27 @@ with st.sidebar:
                 "3. Set `GEMINI_API_KEY=your_key` (optional: `LLM_MODEL=gemini-2.5-flash`).\n"
                 "4. Restart Streamlit.")
 
-    view = st.radio("Mode", ["agent", "chat"], horizontal=True, key="view_radio",
-                    format_func=lambda v: {"agent": "🧪 Agent debugging", "chat": "💬 Chat check"}[v],
-                    help="Agent debugging: Bifura debugs a small AI program. Chat check: Bifura checks a chat answer from Gemini, GPT or Claude.")
+    if ss.get("view_radio") not in ("agent", "kvl"):  # the numeric chat option was removed from the menu
+        ss.view_radio = "agent"
+    view = st.radio("What do you want to check?", ["agent", "kvl"], key="view_radio",
+                    format_func=lambda v: {"agent": ":material/smart_toy: ACME agent (bug demo)",
+                                           "kvl": ":material/electric_bolt: KVL circuit check"}[v],
+                    help="ACME agent: Bifura debugs a small AI program. KVL: check KVL equations from a chat, an AI "
+                         "or you.")
     payloads, mode = [], "Auto"
     if view == "chat":
         from bifura.dashboard.chat_page import sidebar_settings
         chat_settings = sidebar_settings()
+    elif view == "kvl":
+        from bifura.dashboard.kvl_page import sidebar_settings as kvl_sidebar
+        kvl_settings = kvl_sidebar()
     else:
         st.markdown("#### 1 · Run a live investigation")
         sid = st.selectbox("Scenario: the bug injected into the practice agent", list(scenarios),
                            format_func=lambda k: scenarios[k]["title"])
         use_llm = st.toggle("Investigate with Gemini", value=status.ready, disabled=not status.ready,
                             help="Off = scripted investigator (no LLM), clearly labelled as scripted.")
-        if st.button("▶ Run agent & investigate", type="primary", use_container_width=True):
+        if st.button("Run agent & investigate", type="primary", icon=":material/play_arrow:", use_container_width=True):
             from bifura.pipeline import investigate
             with st.status("Running the agent…", expanded=True) as box:
                 try:
@@ -138,7 +162,11 @@ with st.sidebar:
         if ss.flash:
             st.caption(ss.flash)
 
-        runs = load_runs()
+        # ACME mode lists ACME agent runs only. A chat check (KVL/numeric) appears here only when it was
+        # opened with "Watch it in the story view".
+        runs = [r for r in load_runs()
+                if not str(r["payload"].get("scenario_id") or "").startswith("chat-")
+                or r["payload"]["run_id"] == ss.get("open_chat")]
         payloads = [r["payload"] for r in runs]
         st.markdown("#### 2 · Show a run")
         ids = [p["run_id"] for p in payloads]
@@ -226,13 +254,17 @@ with st.sidebar:
             st.download_button("Export standalone report (.html)", get_dashboard_html(payloads, ss.active),
                                file_name=f"bifura-{ss.active}.html", mime="text/html", use_container_width=True)
 
-if view == "chat":
-    from bifura.dashboard.chat_page import main_area
+if view in ("chat", "kvl"):
     st.markdown("""<style>
-      [data-testid="stMainBlockContainer"], .block-container {padding: 2.2rem 3rem 6rem !important; max-width: 1100px !important;}
+      [data-testid="stMainBlockContainer"], .block-container {padding: 2.2rem 2.5rem 6rem !important; max-width: min(1100px, 100%) !important; box-sizing: border-box;}
       [data-testid="stMain"] [data-testid="stVerticalBlock"] {gap: 0.8rem !important;}
     </style>""", unsafe_allow_html=True)
-    main_area(chat_settings)
+    if view == "chat":
+        from bifura.dashboard.chat_page import main_area
+        main_area(chat_settings)
+    else:
+        from bifura.dashboard.kvl_page import main_area as kvl_main
+        kvl_main(kvl_settings)
 elif payloads:
     render_dashboard(payloads, active_run_id=ss.active, height=900, mode=mode.lower(), autoplay=ss.autoplay,
                      embedded=True)

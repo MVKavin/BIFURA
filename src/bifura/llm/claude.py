@@ -24,7 +24,16 @@ class ClaudeClient:
 
     def next_json(self, system: str, turns: list[dict[str, str]]) -> dict[str, Any]:
         a = self._anthropic
-        messages = [{"role": "assistant" if t["role"] == "model" else "user", "content": t["text"]} for t in turns]
+        import base64
+        messages = []
+        for t in turns:
+            content: Any = t["text"]
+            if t.get("image"):
+                data, mime = t["image"]
+                content = [{"type": "image", "source": {"type": "base64", "media_type": mime,
+                                                         "data": base64.standard_b64encode(data).decode()}},
+                           {"type": "text", "text": t["text"]}]
+            messages.append({"role": "assistant" if t["role"] == "model" else "user", "content": content})
         try:
             # Server-side refusal fallback ("default" routing) is on, so a safety decline is retried
             # on another model inside the same call instead of failing the investigation.

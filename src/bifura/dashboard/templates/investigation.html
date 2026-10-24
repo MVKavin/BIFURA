@@ -345,6 +345,11 @@ kbd{font:500 11px var(--mono);border:1px solid var(--ln2);border-bottom-width:2p
 /* story panel can be hidden so the graph takes the full width */
 .app.nostory .work{grid-template-columns:0 minmax(0,1fr) var(--iw,0px)!important}
 .app.nostory #act{border-right:0;overflow:hidden}
+/* keep the play / restart / speed / Auto-Step bar usable when the story panel is hidden */
+.app.nostory .player{position:fixed;left:16px;bottom:44px;width:min(560px,calc(100vw - 32px));z-index:6;
+ padding:8px 12px;border:1px solid var(--ln2);border-radius:12px;background:color-mix(in srgb,var(--pn) 92%,transparent);
+ backdrop-filter:blur(12px);box-shadow:0 8px 24px rgba(0,0,0,.35)}
+.app.nostory .lg{bottom:16px;left:20px}
 /* labelled toggle buttons (story panel / graph size) */
 .tbtn{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 10px;border:1px solid var(--ln2);border-radius:8px;
  font:500 12.5px var(--sans);color:var(--ink);background:color-mix(in srgb,var(--pn) 70%,transparent);white-space:nowrap;
@@ -644,8 +649,8 @@ function makeSteps(){
  const S=[],d=dev(),pr=RUN.prediction,mt=RUN.incident_matches||[],sd=RUN.safety_decisions||[],v=RUN.verification,code=NR.code;
  const devStep=DEV?DEV.i+1:0;
 
- S.push({k:'read',t:'Read what the agent did',ic:'file',node:TRACE[0].id,
-  say:'First, Bifura replays everything the AI agent did, one step at a time.',
+ S.push({k:'read',t:ttl('read','Read what the agent did'),ic:'file',node:TRACE[0].id,
+  say:say('read','First, Bifura replays everything the AI agent did, one step at a time.'),
   tech:`ingest ${esc(RUN.raw_trace_ref||'trace')} → normalize → ${RUN.events_count} TraceEvents · schema ok`,
   run:async c=>{c.now('Opening the recorded trace');await boom();c.now('Putting the events in order');
    const L=document.createElement('div');L.className='evl';c.body.appendChild(L);
@@ -687,8 +692,8 @@ function makeSteps(){
 
  if((pr&&(pr.candidates||[]).length)||(pr&&pr.abstained)||mt.length){
   const node=DEV||OUT_N,cands=pr?[...(pr.candidates||[])].sort((a,b)=>b.score-a.score).slice(0,4):[],best=[...mt].sort((a,b)=>(b.similarity_score||0)-(a.similarity_score||0))[0];
-  S.push({k:'past',t:'Compare with past failures',ic:'hist',node:node.id,tag:'prediction',
-   say:`Bifura checks this against failures it has seen before.${best?' It looks like a familiar mistake, but':' This is'} still a guess until the fix is tested.`,
+  S.push({k:'past',t:ttl('past','Compare with past failures'),ic:'hist',node:node.id,tag:'prediction',
+   say:NR.say&&NR.say.past||`Bifura checks this against failures it has seen before.${best?' It looks like a familiar mistake, but':' This is'} still a guess until the fix is tested.`,
    tech:pr?`model ${esc(pr.model_version||'—')} · dataset ${esc(pr.dataset_version||'—')} · scores are ${esc(String(pr.score_meaning||'rankings').replace(/_/g,' '))}`:'incident memory lookup',
    run:async(c,r)=>{focus(node.id,'Checking past incidents');look(node.x+85,node.y+5,760);c.now('Ranking likely failure types');await sleep(r*.35);
     if(pr&&pr.abstained)add(c.body,`Prediction abstained · ${esc(pr.abstention_reason||'not enough evidence')}`);

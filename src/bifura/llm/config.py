@@ -35,6 +35,8 @@ def provider_status(provider: str) -> LLMStatus:
     load_dotenv(REPO_ROOT / ".env", override=True)
     spec = PROVIDERS[provider]
     model = os.environ.get(spec["model_env"]) or None
+    if model and (model.startswith(("AQ.", "AIza", "sk-")) or len(model) > 60):
+        model = None  # an API key was pasted into the model setting by mistake; never send it as a model name
     if not _key(provider):
         return LLMStatus(provider, model, False, f"No {spec['keys'][0]} in .env.")
     try:

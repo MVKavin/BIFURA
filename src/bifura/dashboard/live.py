@@ -27,11 +27,14 @@ def chat_narrative(t: dict[str, Any]) -> dict[str, Any]:
     verified, corrected = t["verified"], t["corrected"]
     f = lambda x: "—" if x is None else f"{x:g}"
     nr: dict[str, Any] = {
-        "titles": {"code": "Pinpoint the wrong calculation", "fix": "Ask the AI to correct itself",
+        "titles": {"read": "Read the AI's answer", "past": "Guess the type of mistake",
+                   "code": "Pinpoint the wrong calculation", "fix": "Ask the AI to correct itself",
                    "replay": "Recalculate the corrected answer"},
         "dig_label": "See the wrong calculation",
         "fix_now": "Asking the AI to redo it",
-        "say": {"compare": f"{e(who)} answered step by step. Bifura recalculates every step with an exact calculator."
+        "say": {"read": f"First, Bifura reads {e(who)}'s answer and splits it into steps.",
+                "past": "Bifura guesses what kind of slip it is, using simple rules. This is a hint, not proof.",
+                "compare": f"{e(who)} answered step by step. Bifura recalculates every step with an exact calculator."
                            + (" One step does not add up." if wrong else ""),
                 "fix": f"Bifura tells {e(t['label'])} exactly which step is wrong and asks it to redo the solution.",
                 "verdict": ("The corrected answer checks out: every step now recalculates correctly." if verified and corrected
